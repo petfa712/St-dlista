@@ -51,7 +51,6 @@
     </header>
 
     <main id="app-content" class="p-4 max-w-lg mx-auto space-y-4">
-        <!-- Laddningsindikator visas tills JS tar över -->
         <div class="flex justify-center py-12">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
@@ -101,7 +100,6 @@
 
         const appId = 'stadkoll-app-v3';
 
-        // Registrera Service Worker för Offline-stöd
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js').then(reg => {
@@ -114,7 +112,7 @@
             weekly: [
                 { id: 'mon', name: 'Måndag', short: 'Mån', color: '#3b82f6', tasks: ['Rengör spis & bänk', 'Sopsortering', 'Diskho'], laundry: 'Handdukar', rotation: {
                     v13: ['Rengör mikron', 'Smutsiga handtag'],
-                    v2: ['Tvätta grytlappar', 'Diskmaskin + filter'],
+                    v2: ['Tvätta grytlappar', 'Diskmaskin + filter', 'Olja träverktyg'],
                     v4: ['Under diskbänken', 'Vattenlås (medel)', 'Rengör kranen']
                 }},
                 { id: 'tue', name: 'Tisdag', short: 'Tis', color: '#9333ea', tasks: ['Toalett', 'Putsa speglar', 'Handfat', 'Robotdammsugare'], laundry: '40°/30°', rotation: {
@@ -128,7 +126,8 @@
                     v4: ['Bokhyllor', 'Damma tomma rum']
                 }},
                 { id: 'thu', name: 'Torsdag', short: 'Tor', color: '#f59e0b', tasks: ['Töm roboten', 'Dammsuga'], laundry: 'Vit / underkläder', rotation: {
-                    v13: ['Dammsuga soffan', 'Dammsuga sänggavel', 'Dammsuga under sängen'],
+                    v13: ['Dammsuga soffan'],
+                    v2: ['Sänggavel & under sängen'],
                     v4: ['Dammsuga tomma rum noggrant', 'Moppa golven ordentligt']
                 }},
                 { id: 'fri', name: 'Fredag', short: 'Fre', color: '#f43f5e', tasks: ['Byt sängkläder', 'Robot', 'Helgpiff'], laundry: 'Sängkläder', rotation: {
@@ -179,6 +178,39 @@
             await syncToCloud();
         };
 
+        window.resetProgress = async (type) => {
+            const msg = type === 'weekly' ? 'veckan' : 'säsongen';
+            if (!confirm(`Vill du nollställa alla bockar för ${msg}?`)) return;
+
+            const now = new Date();
+            const timestamp = now.toLocaleDateString('sv-SE', { 
+                day: 'numeric', 
+                month: 'short', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+
+            if (type === 'weekly') {
+                cleaningData.weekly.forEach(day => {
+                    day.tasks.forEach((_, i) => delete checkedItems[`${day.id}-t-${i}`]);
+                    delete checkedItems[`${day.id}-l`];
+                    Object.keys(day.rotation).forEach(key => {
+                        day.rotation[key].forEach((_, i) => delete checkedItems[`${day.id}-r-${key}-${i}`]);
+                    });
+                });
+                checkedItems.lastResetWeekly = timestamp;
+            } else {
+                cleaningData.seasonal.forEach(s => {
+                    s.tasks.forEach((_, i) => delete checkedItems[`${s.id}-st-${i}`]);
+                    s.deep.forEach((_, i) => delete checkedItems[`${s.id}-sd-${i}`]);
+                });
+                cleaningData.quarterly.forEach((_, i) => delete checkedItems[`q-${i}`]);
+                checkedItems.lastResetSeasonal = timestamp;
+            }
+            render();
+            await syncToCloud();
+        };
+
         // Auth Logic
         window.handleAuth = async (mode) => {
             if (!auth) return;
@@ -223,11 +255,15 @@
             if (!container) return;
             container.innerHTML = '';
             
-            // Nav bar styling
             document.getElementById('nav-weekly').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'weekly' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('nav-seasonal').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'seasonal' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('nav-profile').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'profile' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('week-selector-ui').style.display = currentView === 'weekly' ? 'flex' : 'none';
+
+            document.querySelectorAll('#week-selector-ui button[id^="btn-v"]').forEach(btn => {
+                const isActive = btn.id === `btn-v${currentWeek}`;
+                btn.className = `px-3 py-1 text-xs rounded-md transition-all ${isActive ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500'}`;
+            });
 
             if (currentView === 'weekly') renderWeekly(container);
             else if (currentView === 'seasonal') renderSeasonal(container);
@@ -245,22 +281,44 @@
                 tabs.appendChild(btn);
             });
             container.appendChild(tabs);
+            
             const day = cleaningData.weekly.find(d => d.id === currentDayId);
             const card = document.createElement('div');
             card.className = "card bg-white rounded-xl card-shadow border-t-4 mb-4";
             card.style.borderTopColor = day.color;
-            let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold uppercase text-slate-800">${day.name}</h3><span class="text-[10px] font-bold text-slate-400">VECKA ${currentWeek}</span></div><div class="space-y-2.5">`;
+            
+            const displayWeek = (currentWeek === 1 || currentWeek === 3) ? '1/3' : currentWeek;
+            let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold uppercase text-slate-800">${day.name}</h3><span class="text-[10px] font-bold text-slate-400">VECKA ${displayWeek}</span></div><div class="space-y-2.5">`;
+            
             day.tasks.forEach((t, i) => html += renderItemHtml(`${day.id}-t-${i}`, t));
-            const rotKey = currentWeek === 4 ? 'v4' : (currentWeek === 2 ? 'v2' : 'v13');
+            
+            const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
             const rotTasks = day.rotation[rotKey] || [];
             if (rotTasks.length > 0) {
-                html += `<div class="mt-2 pt-2 border-t"><p class="text-[9px] font-black text-slate-300 uppercase mb-2">Rotation (${rotKey.toUpperCase()})</p>`;
+                const rotLabel = (rotKey === 'v13') ? 'V1/3' : rotKey.toUpperCase();
+                html += `<div class="mt-2 pt-2 border-t"><p class="text-[9px] font-black text-slate-300 uppercase mb-2">Rotation (${rotLabel})</p>`;
                 rotTasks.forEach((t, i) => html += renderItemHtml(`${day.id}-r-${rotKey}-${i}`, t));
                 html += `</div>`;
             }
             html += `<div class="py-2 border-t mt-2 flex items-center gap-3" onclick="toggleItem('${day.id}-l')"><div class="w-5 h-5 rounded border-2 flex items-center justify-center ${checkedItems[day.id+'-l'] ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${checkedItems[day.id+'-l'] ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic text-blue-600 ${checkedItems[day.id+'-l'] ? 'checked-text' : ''}">Tvätt: ${day.laundry}</span></div></div></div>`;
             card.innerHTML = html;
             container.appendChild(card);
+
+            const resetContainer = document.createElement('div');
+            resetContainer.className = "mt-6 text-center";
+            const resetBtn = document.createElement('button');
+            resetBtn.className = "w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] tracking-widest active:bg-slate-300";
+            resetBtn.innerText = "Nollställ Vecka";
+            resetBtn.onclick = () => window.resetProgress('weekly');
+            resetContainer.appendChild(resetBtn);
+            
+            if (checkedItems.lastResetWeekly) {
+                const ts = document.createElement('p');
+                ts.className = "text-[9px] text-slate-400 mt-2 uppercase italic";
+                ts.innerText = `Senast nollställd: ${checkedItems.lastResetWeekly}`;
+                resetContainer.appendChild(ts);
+            }
+            container.appendChild(resetContainer);
         }
 
         function renderSeasonal(container) {
@@ -274,16 +332,34 @@
                 tabs.appendChild(btn);
             });
             container.appendChild(tabs);
+            
             const season = cleaningData.seasonal.find(x => x.id === currentSeasonId);
             let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 mb-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">`;
             season.tasks.forEach((t, i) => sHtml += renderItemHtml(`${season.id}-st-${i}`, t));
             sHtml += `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Deep Clean</p>`;
             season.deep.forEach((t, i) => sHtml += renderItemHtml(`${season.id}-sd-${i}`, t));
             sHtml += `</div></div></div>`;
+            
             let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3">Kvartalsfix</h3><div class="space-y-2.5">`;
             cleaningData.quarterly.forEach((t, i) => qHtml += renderItemHtml(`q-${i}`, t));
             qHtml += `</div></div>`;
             container.innerHTML += sHtml + qHtml;
+
+            const resetContainer = document.createElement('div');
+            resetContainer.className = "mt-6 text-center";
+            const resetBtn = document.createElement('button');
+            resetBtn.className = "w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] tracking-widest active:bg-slate-300";
+            resetBtn.innerText = "Nollställ Säsong";
+            resetBtn.onclick = () => window.resetProgress('seasonal');
+            resetContainer.appendChild(resetBtn);
+            
+            if (checkedItems.lastResetSeasonal) {
+                const ts = document.createElement('p');
+                ts.className = "text-[9px] text-slate-400 mt-2 uppercase italic";
+                ts.innerText = `Senast nollställd: ${checkedItems.lastResetSeasonal}`;
+                resetContainer.appendChild(ts);
+            }
+            container.appendChild(resetContainer);
         }
 
         function renderProfile(container) {
@@ -365,4 +441,3 @@
     </script>
 </body>
 </html>
-
