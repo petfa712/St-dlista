@@ -81,7 +81,7 @@
         import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // ==========================================
-        // KONFIGURATION (Klistra in din nyckel här)
+        // KONFIGURATION
         // ==========================================
         const defaultFirebaseConfig = const defaultFirebaseConfig = {
             apiKey: "AIzaSyAZkTPNGWC29HQ9fz4Zr8vK8Cfb4VYV6YA",
@@ -170,12 +170,12 @@
 
         // Auth Logic
         window.handleAuth = async (mode) => {
-            if (!auth) return alert("Firebase saknas");
+            if (!auth) return;
             const user = document.getElementById('auth-user').value.trim();
             const pass = document.getElementById('auth-pass').value;
             
             if(!user || !pass) {
-                authStatus = { loading: false, message: "Fyll i både namn och lösenord.", type: "error" };
+                authStatus = { loading: false, message: "Ange både namn och lösenord.", type: "error" };
                 render();
                 return;
             }
@@ -190,13 +190,12 @@
                 } else {
                     await createUserWithEmailAndPassword(auth, email, pass);
                 }
-                // onAuthStateChanged sköter resten av UI-uppdateringen
             } catch (e) {
                 console.error(e);
                 let msg = "Ett fel uppstod.";
                 if (e.code === 'auth/user-not-found') msg = "Användaren hittades inte.";
                 if (e.code === 'auth/wrong-password') msg = "Fel lösenord.";
-                if (e.code === 'auth/email-already-in-use') msg = "Användarnamnet är upptaget.";
+                if (e.code === 'auth/email-already-in-use') msg = "Namnet är upptaget.";
                 authStatus = { loading: false, message: msg, type: "error" };
                 render();
             }
@@ -210,16 +209,13 @@
         };
 
         const syncToCloud = async () => {
-            // Spara lokalt
             localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
-            
-            // Spara i molnet endast om användaren är inloggad med ett RIKTIGT konto
             if (!currentUser || currentUser.isAnonymous || !db || !isCloudConnected) return;
             
             try {
                 const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'cleaningData', 'state');
                 await setDoc(docRef, { items: checkedItems }, { merge: true });
-            } catch (e) { console.warn("Cloud sync failed/paused"); }
+            } catch (e) { console.warn("Cloud sync paused"); }
         };
 
         const render = () => {
@@ -279,9 +275,7 @@
             });
             container.appendChild(tabs);
             const season = cleaningData.seasonal.find(x => x.id === currentSeasonId);
-            const contentDiv = document.createElement('div');
-            contentDiv.className = "space-y-4";
-            let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">`;
+            let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 mb-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">`;
             season.tasks.forEach((t, i) => sHtml += renderItemHtml(`${season.id}-st-${i}`, t));
             sHtml += `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Deep Clean</p>`;
             season.deep.forEach((t, i) => sHtml += renderItemHtml(`${season.id}-sd-${i}`, t));
@@ -289,13 +283,12 @@
             let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3">Kvartalsfix</h3><div class="space-y-2.5">`;
             cleaningData.quarterly.forEach((t, i) => qHtml += renderItemHtml(`q-${i}`, t));
             qHtml += `</div></div>`;
-            contentDiv.innerHTML = sHtml + qHtml;
-            container.appendChild(contentDiv);
+            container.innerHTML += sHtml + qHtml;
         }
 
         function renderProfile(container) {
             if (!firebaseConfig) {
-                container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6 text-center w-full animate-fade-in"><h2 class="font-bold text-lg text-rose-600 mb-2">Konfiguration saknas</h2><p class="text-xs text-slate-500">Appen körs i offline-läge.</p></div>`;
+                container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6 text-center w-full animate-fade-in"><h2 class="font-bold text-lg text-rose-600 mb-2">Lokal lagring</h2><p class="text-xs text-slate-500">Logga in för att aktivera molnsynk.</p></div>`;
                 return;
             }
             if (currentUser && !currentUser.isAnonymous && isCloudConnected) {
@@ -332,7 +325,7 @@
                                 </button>
                             </div>
                         </div>
-                        <p class="text-[10px] text-center text-slate-300 mt-6 italic uppercase">Utan konto sparas listan bara i denna mobil.</p>
+                        <p class="text-[10px] text-center text-slate-300 mt-6 italic uppercase font-medium">Utan konto sparas listan bara i denna mobil.</p>
                     </div>
                 `;
             }
@@ -345,7 +338,9 @@
 
         const initFirebase = async () => {
             const statusEl = document.getElementById('sync-status');
-            if (!firebaseConfig) { statusEl.innerText = "Lokalt"; render(); return; }
+            render(); // Visa lokala listor direkt!
+
+            if (!firebaseConfig) { statusEl.innerText = "Lokalt"; return; }
             
             try {
                 const app = initializeApp(firebaseConfig);
@@ -355,22 +350,14 @@
                 await enableIndexedDbPersistence(db).catch(() => {});
 
                 onAuthStateChanged(auth, async (user) => {
-                    // Om vi nyss loggat in via form-knapparna, visa succé en kort stund
-                    if (user && !user.isAnonymous && authStatus.loading) {
-                        authStatus = { loading: false, message: "Inloggad!", type: "success" };
-                    } else if (!user) {
-                        // Inget konto? Kör anonymt i bakgrunden (för unikt ID)
-                        signInAnonymously(auth).catch(() => {});
-                        return;
-                    }
-                    
+                    authStatus.loading = false;
                     currentUser = user;
                     
-                    if (user.isAnonymous) {
-                        isCloudConnected = false;
-                        statusEl.innerText = "Lokal lagring";
-                        statusEl.className = "text-[10px] text-slate-400 font-bold uppercase";
-                    } else {
+                    if (user && !user.isAnonymous) {
+                        // Inloggad med riktigt konto
+                        authStatus.message = "Inloggad!";
+                        authStatus.type = "success";
+                        
                         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'cleaningData', 'state');
                         if(unsubscribeSync) unsubscribeSync();
                         
@@ -387,12 +374,16 @@
                             render();
                         }, (err) => {
                             isCloudConnected = false;
-                            statusEl.innerText = "Behörighet saknas";
-                            statusEl.className = "text-[10px] text-rose-500 font-bold uppercase";
+                            statusEl.innerText = "Offline/Fel";
                             render();
                         });
+                    } else {
+                        // Inte inloggad eller anonym
+                        isCloudConnected = false;
+                        statusEl.innerText = "Lokalt";
+                        statusEl.className = "text-[10px] text-slate-400 font-bold uppercase";
+                        render();
                     }
-                    render();
                 });
             } catch (e) { 
                 statusEl.innerText = "Offline"; 
@@ -402,8 +393,6 @@
 
         document.getElementById('today-suggestion').innerText = `Idag: V${getSuggestedWeek()}`;
         initFirebase();
-        // Rendera direkt för att slippa laddnings-skärm
-        render();
     </script>
 </body>
 </html>
