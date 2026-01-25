@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StädKoll - Din Interaktiva Städpartner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .checked-text { text-decoration: line-through; color: #94a3b8; }
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-24 text-slate-900">
+
+    <!-- Header -->
+    <header class="bg-white border-b sticky top-0 z-10 px-4 py-3 flex justify-between items-center shadow-sm">
+        <div class="flex flex-col">
+            <h1 class="text-xl font-bold text-slate-800 uppercase tracking-tight">Städlista</h1>
+            <div class="flex items-center gap-2">
+                <span id="sync-status" class="text-[10px] text-amber-500 font-bold uppercase tracking-wide">Startar...</span>
+                <span id="today-suggestion" class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-black uppercase"></span>
+            </div>
+        </div>
+        <div id="week-selector-ui" class="flex gap-1 bg-slate-100 p-1 rounded-lg">
+            <button onclick="autoSetWeek()" class="px-2 py-1 text-[10px] font-bold text-blue-600 hover:bg-white rounded transition-all uppercase">Auto</button>
+            <div class="w-px h-4 bg-slate-200 self-center mx-1"></div>
+            <button onclick="setWeek(1)" id="btn-v1" class="px-3 py-1 text-xs rounded-md transition-all">V1</button>
+            <button onclick="setWeek(2)" id="btn-v2" class="px-3 py-1 text-xs rounded-md transition-all">V2</button>
+            <button onclick="setWeek(3)" id="btn-v3" class="px-3 py-1 text-xs rounded-md transition-all">V3</button>
+            <button onclick="setWeek(4)" id="btn-v4" class="px-3 py-1 text-xs rounded-md transition-all">V4</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="app-content" class="p-4 max-w-lg mx-auto space-y-4">
+        <div class="flex justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+    </main>
+
+    <!-- Navigation -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around items-center h-16 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <button onclick="switchView('weekly')" id="nav-weekly" class="flex flex-col items-center gap-1 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span class="text-[10px] font-bold uppercase">Vecka</span>
+        </button>
+        <button onclick="switchView('seasonal')" id="nav-seasonal" class="flex flex-col items-center gap-1 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span class="text-[10px] font-bold uppercase">Säsong</span>
+        </button>
+        <button onclick="switchView('profile')" id="nav-profile" class="flex flex-col items-center gap-1 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span class="text-[10px] font-bold uppercase">Profil</span>
+        </button>
+    </nav>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // ==========================================
+        // DIN FIREBASE CONFIG:
+        // ==========================================
+        const myCustomFirebaseConfig = null; 
+
+        const firebaseConfig = (typeof __firebase_config !== 'undefined') 
+            ? JSON.parse(__firebase_config) 
+            : myCustomFirebaseConfig;
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'stadkoll-app-v3';
+        
+        const cleaningData = {
+            weekly: [
+                { id: 'mon', name: 'Måndag', short: 'Mån', color: '#3b82f6', tasks: ['Rengör spis & bänk', 'Sopsortering', 'Diskho'], laundry: 'Handdukar', rotation: {
+                    v13: ['Rengör mikron', 'Smutsiga handtag'],
+                    v2: ['Tvätta grytlappar', 'Diskmaskin + filter'],
+                    v4: ['Under diskbänken', 'Vattenlås (medel)', 'Rengör kranen']
+                }},
+                { id: 'tue', name: 'Tisdag', short: 'Tis', color: '#9333ea', tasks: ['Toalett', 'Putsa speglar', 'Handfat', 'Robotdammsugare'], laundry: '40°/30°', rotation: {
+                    v13: ['Skrubba duschen'],
+                    v2: ['Badrumsmatta', 'Toalett noggrant'],
+                    v4: ['Koka tandborste']
+                }},
+                { id: 'wed', name: 'Onsdag', short: 'Ons', color: '#10b981', tasks: ['Damma ytor', 'Piffa kuddar/filtar'], laundry: 'Träningskläder', rotation: {
+                    v13: ['Lister & dörrar'],
+                    v2: ['Lampor & ventiler'],
+                    v4: ['Bokhyllor', 'Damma tomma rum']
+                }},
+                { id: 'thu', name: 'Torsdag', short: 'Tor', color: '#f59e0b', tasks: ['Töm roboten', 'Dammsuga'], laundry: 'Vit / underkläder', rotation: {
+                    v13: ['Dammsuga soffan', 'Dammsuga sänggavel', 'Dammsuga under sängen'],
+                    v4: ['Dammsuga tomma rum noggrant', 'Moppa golven ordentligt']
+                }},
+                { id: 'fri', name: 'Fredag', short: 'Fre', color: '#f43f5e', tasks: ['Byt sängkläder', 'Robot', 'Helgpiff'], laundry: 'Sängkläder', rotation: {
+                    v2: ['Slänga trasor & svampar'],
+                    v4: ['Tvättmaskinsrengöring']
+                }}
+            ],
+            seasonal: [
+                { id: 'spring', name: 'Vår (Mar/Apr)', color: '#10b981', tasks: ['Putsa fönster', 'Balkongstäd', 'Plantera om', 'Tvätta täcken', 'Vinter ut / Sommar in'], deep: ['Tvätta soffan', 'Under stora möbler', 'Piska mattan', 'Tvätta gardiner', 'Rensa förråd'] },
+                { id: 'summer', name: 'Sommar (Jun/Jul)', color: '#0ea5e9', tasks: ['Torka väggar', 'Lampor', 'Element'], deep: ['Under maskiner', 'Skåp tvättstuga', 'Skåp badrum', 'Borsta fogar', 'Avkalka dusch'] },
+                { id: 'autumn', name: 'Höst (Sep/Okt)', color: '#f97316', tasks: ['Putsa fönster', 'Städa balkong', 'Tvätta täcken', 'Sommar ut / Vinter in', 'Hall: Slask-prep'], deep: ['Garderob', 'Byrå & hyllor', 'Klädkammare', 'Extrarum noggrant'] },
+                { id: 'winter', name: 'Vinter (Dec/Jan)', color: '#6366f1', tasks: ['Kontrollera lister', 'Frosta av frys'], deep: ['Köksskåp', 'Bakom kyl/ugn', 'Bokhyllor', 'Garderob: Rensa'] }
+            ],
+            quarterly: ['Fläktfilter', 'Ugnen', 'Kylen', 'Vattenlås', 'Madrasskydd', 'Gör rent madrass', 'Soffa & fåtölj', 'Byt tandborste', 'Avkalka']
+        };
+
+        const getSuggestedWeek = () => {
+            const date = new Date().getDate();
+            if (date <= 7) return 1;
+            if (date <= 14) return 2;
+            if (date <= 21) return 3;
+            return 4;
+        };
+
+        // State Init
+        let currentView = 'weekly';
+        let currentWeek = getSuggestedWeek();
+        let currentDayId = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()] || 'mon';
+        if (currentDayId === 'sun' || currentDayId === 'sat') currentDayId = 'fri';
+        let currentSeasonId = localStorage.getItem('current_season') || 'spring';
+        
+        let checkedItems = JSON.parse(localStorage.getItem('cleaning_local_v3')) || {};
+        let currentUser = null;
+        let db = null;
+        let auth = null;
+        let unsubscribeSync = null;
+        let isCloudConnected = false;
+
+        // UI Functions
+        window.switchView = (view) => { currentView = view; render(); };
+        window.setWeek = (w) => { currentWeek = w; render(); };
+        window.autoSetWeek = () => { currentWeek = getSuggestedWeek(); render(); };
+        window.setDay = (dayId) => { currentDayId = dayId; render(); };
+        window.toggleItem = async (id) => {
+            checkedItems[id] = !checkedItems[id];
+            localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
+            render();
+            await syncToCloud();
+        };
+
+        window.handleAuth = async (mode) => {
+            if (!auth) return alert("Firebase är inte konfigurerat");
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-pass').value;
+            if(!email || !pass) return alert("Ange e-post och lösenord");
+            
+            try {
+                if(mode === 'login') await signInWithEmailAndPassword(auth, email, pass);
+                else await createUserWithEmailAndPassword(auth, email, pass);
+            } catch (e) {
+                alert("Fel: " + e.message);
+            }
+        };
+
+        window.handleLogout = async () => {
+            if (auth) await signOut(auth);
+            checkedItems = {};
+            localStorage.removeItem('cleaning_local_v3');
+            location.reload();
+        };
+
+        window.resetProgress = async (type) => {
+            if (!confirm(`Nollställ alla bockar för ${type === 'weekly' ? 'veckan' : 'säsongen'}?`)) return;
+            Object.keys(checkedItems).forEach(key => {
+                if(type === 'weekly' && (key.includes('-t-') || key.includes('-l') || key.includes('-r-'))) delete checkedItems[key];
+                if(type === 'seasonal' && (key.includes('-st-') || key.includes('-sd-') || key.startsWith('q-'))) delete checkedItems[key];
+            });
+            localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
+            render();
+            await syncToCloud();
+        };
+
+        const render = () => {
+            const container = document.getElementById('app-content');
+            if (!container) return;
+            container.innerHTML = '';
+            
+            document.getElementById('nav-weekly').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'weekly' ? 'text-blue-600' : 'text-slate-400'}`;
+            document.getElementById('nav-seasonal').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'seasonal' ? 'text-blue-600' : 'text-slate-400'}`;
+            document.getElementById('nav-profile').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'profile' ? 'text-blue-600' : 'text-slate-400'}`;
+            
+            document.getElementById('week-selector-ui').style.display = currentView === 'weekly' ? 'flex' : 'none';
+
+            if (currentView === 'weekly') renderWeekly(container);
+            else if (currentView === 'seasonal') renderSeasonal(container);
+            else renderProfile(container);
+        };
+
+        function renderWeekly(container) {
+            const tabs = document.createElement('div');
+            tabs.className = "flex overflow-x-auto gap-2 mb-4 no-scrollbar pb-1";
+            cleaningData.weekly.forEach(day => {
+                const btn = document.createElement('button');
+                const isActive = currentDayId === day.id;
+                btn.className = `px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${isActive ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
+                btn.innerText = day.short;
+                btn.onclick = () => window.setDay(day.id);
+                tabs.appendChild(btn);
+            });
+            container.appendChild(tabs);
+
+            const day = cleaningData.weekly.find(d => d.id === currentDayId);
+            const card = document.createElement('div');
+            card.className = "card bg-white rounded-xl card-shadow overflow-hidden border-t-4 mb-4";
+            card.style.borderTopColor = day.color;
+
+            let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold text-slate-800 text-base uppercase">${day.name}</h3><span class="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">VECKA ${currentWeek}</span></div><div class="space-y-2.5">`;
+            day.tasks.forEach((t, i) => html += renderItemHtml(`${day.id}-t-${i}`, t));
+            
+            const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
+            const rotTasks = day.rotation[rotKey] || [];
+            if (rotTasks.length > 0) {
+                html += `<div class="mt-2 pt-2 border-t"><p class="text-[9px] font-black text-slate-300 uppercase mb-2">Rotation (${rotKey === 'v13' ? 'V1/3' : rotKey.toUpperCase()})</p>`;
+                rotTasks.forEach((t, i) => html += renderItemHtml(`${day.id}-r-${rotKey}-${i}`, t));
+                html += `</div>`;
+            }
+            const lId = `${day.id}-l`;
+            html += `<div class="py-2 border-t mt-2 flex items-center gap-3 active:bg-blue-50 transition-colors" onclick="toggleItem('${lId}')"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${checkedItems[lId] ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${checkedItems[lId] ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm font-semibold italic text-blue-600 ${checkedItems[lId] ? 'checked-text' : ''}">Tvätt: ${day.laundry}</span></div></div></div>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+        }
+
+        function renderSeasonal(container) {
+            const tabs = document.createElement('div');
+            tabs.className = "flex overflow-x-auto gap-2 mb-4 no-scrollbar pb-1";
+            cleaningData.seasonal.forEach(s => {
+                const btn = document.createElement('button');
+                const isActive = currentSeasonId === s.id;
+                btn.className = `px-5 py-2 rounded-full text-xs font-bold transition-all ${isActive ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
+                btn.innerText = s.name.split(' ')[0];
+                btn.onclick = () => { 
+                    currentSeasonId = s.id; 
+                    localStorage.setItem('current_season', s.id); 
+                    render(); 
+                };
+                tabs.appendChild(btn);
+            });
+            container.appendChild(tabs);
+
+            const season = cleaningData.seasonal.find(x => x.id === currentSeasonId);
+            const contentDiv = document.createElement('div');
+            contentDiv.className = "space-y-4";
+
+            let seasonalHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4" style="border-left-color:${season.color}">
+                <h3 class="font-bold text-[10px] uppercase mb-3 tracking-widest" style="color:${season.color}">${season.name}</h3>
+                <div class="space-y-2.5">`;
+            season.tasks.forEach((t, i) => seasonalHtml += renderItemHtml(`${season.id}-st-${i}`, t));
+            seasonalHtml += `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2 tracking-widest">Deep Clean</p>`;
+            season.deep.forEach((t, i) => seasonalHtml += renderItemHtml(`${season.id}-sd-${i}`, t));
+            seasonalHtml += `</div></div></div>`;
+            
+            let quarterlyHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400">
+                <h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3 tracking-widest">Kvartalsfix</h3>
+                <div class="space-y-2.5">`;
+            cleaningData.quarterly.forEach((t, i) => quarterlyHtml += renderItemHtml(`q-${i}`, t));
+            quarterlyHtml += `</div></div>`;
+            
+            contentDiv.innerHTML = seasonalHtml + quarterlyHtml;
+            container.appendChild(contentDiv);
+        }
+
+        function renderProfile(container) {
+            if (!firebaseConfig) {
+                container.innerHTML = `
+                    <div class="card bg-white rounded-xl card-shadow p-6 text-center">
+                        <div class="w-16 h-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        </div>
+                        <h2 class="font-bold text-lg">Lokalt Läge</h2>
+                        <p class="text-sm text-slate-500 mb-6">Molnkonfiguration saknas. Bockar sparas bara i denna webbläsare.</p>
+                        <p class="text-[10px] text-slate-400 italic">Lägg till firebaseConfig i koden för att aktivera molnsynk.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (currentUser && !currentUser.isAnonymous && isCloudConnected) {
+                container.innerHTML = `
+                    <div class="card bg-white rounded-xl card-shadow p-6 text-center">
+                        <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        </div>
+                        <h2 class="font-bold text-lg">${currentUser.email}</h2>
+                        <p class="text-sm text-slate-500 mb-6">Inloggad och synkad mot molnet.</p>
+                        <button onclick="handleLogout()" class="w-full py-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm">Logga ut</button>
+                    </div>
+                `;
+            } else if (currentUser && !currentUser.isAnonymous && !isCloudConnected) {
+                 container.innerHTML = `
+                    <div class="card bg-white rounded-xl card-shadow p-6 text-center">
+                        <div class="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        </div>
+                        <h2 class="font-bold text-lg">${currentUser.email}</h2>
+                        <p class="text-sm text-rose-500 mb-6 font-bold uppercase">Anslutningsfel</p>
+                        <p class="text-xs text-slate-500 mb-6">Du är inloggad, men vi kan inte nå databasen just nu. Dubbelkolla dina Firestore-regler.</p>
+                        <button onclick="handleLogout()" class="w-full py-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm">Logga ut</button>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="card bg-white rounded-xl card-shadow p-6">
+                        <h2 class="font-bold text-xl mb-6">Ditt Konto</h2>
+                        <div class="space-y-4">
+                            <input id="auth-email" type="email" placeholder="E-post" class="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-blue-500">
+                            <input id="auth-pass" type="password" placeholder="Lösenord" class="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-blue-500">
+                            <div class="grid grid-cols-2 gap-3">
+                                <button onclick="handleAuth('login')" class="py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Logga in</button>
+                                <button onclick="handleAuth('register')" class="py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm">Registrera</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderItemHtml(id, text) {
+            const isChecked = checkedItems[id];
+            return `<div class="flex items-center gap-3 py-0.5" onclick="toggleItem('${id}')"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isChecked ? 'bg-slate-400 border-slate-400 scale-95' : 'border-slate-300'}">${isChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm text-slate-600 font-medium leading-tight ${isChecked ? 'checked-text' : ''}">${text}</span></div>`;
+        }
+
+        const syncToCloud = async () => {
+            if (!currentUser || !db || !isCloudConnected) return;
+            try {
+                const path = currentUser.isAnonymous 
+                    ? ['artifacts', appId, 'public', 'data', 'cleaningState', 'state']
+                    : ['artifacts', appId, 'users', currentUser.uid, 'cleaningData', 'state'];
+                await setDoc(doc(db, ...path), { items: checkedItems }, { merge: true });
+            } catch (e) { console.warn("Sync fail", e); }
+        };
+
+        const initFirebase = async () => {
+            const statusEl = document.getElementById('sync-status');
+            if (!firebaseConfig) { statusEl.innerText = "Sparas lokalt"; return; }
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                const initAuth = async () => {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    }
+                };
+                await initAuth();
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (!user) { 
+                        try {
+                            await signInAnonymously(auth); 
+                        } catch (e) {
+                            console.error("Auth failed", e);
+                            statusEl.innerText = "Inloggningsfel";
+                        }
+                        return; 
+                    }
+                    currentUser = user;
+                    
+                    if(unsubscribeSync) unsubscribeSync();
+                    
+                    const path = user.isAnonymous 
+                        ? ['artifacts', appId, 'public', 'data', 'cleaningState', 'state']
+                        : ['artifacts', appId, 'users', user.uid, 'cleaningData', 'state'];
+                    
+                    unsubscribeSync = onSnapshot(doc(db, ...path), (docSnap) => {
+                        isCloudConnected = true;
+                        statusEl.innerText = user.isAnonymous ? "Anonym synk" : "Inloggad synk";
+                        statusEl.className = "text-[10px] text-green-500 font-bold uppercase";
+                        
+                        if (docSnap.exists()) {
+                            checkedItems = docSnap.data().items || {};
+                            localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
+                            render();
+                        }
+                    }, (err) => {
+                        isCloudConnected = false;
+                        console.error("Snapshot error:", err);
+                        if (err.code === 'permission-denied') {
+                            statusEl.innerText = "Behörighet saknas";
+                            statusEl.className = "text-[10px] text-rose-500 font-bold uppercase";
+                        } else {
+                            statusEl.innerText = "Synk pausad";
+                            statusEl.className = "text-[10px] text-amber-500 font-bold uppercase";
+                        }
+                        render();
+                    });
+                });
+            } catch (e) { 
+                statusEl.innerText = "Offline"; 
+            }
+        };
+
+        document.getElementById('today-suggestion').innerText = `Idag: V${getSuggestedWeek()}`;
+        initFirebase();
+        render();
+    </script>
+</body>
+</html>
