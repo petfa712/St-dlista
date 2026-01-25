@@ -12,6 +12,13 @@
         .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Animation för statusmeddelanden */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen pb-24 text-slate-900">
@@ -70,28 +77,20 @@
         import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // ==========================================
-        // DIN FIREBASE CONFIG:
+        // KONFIGURATION
         // ==========================================
-        const myCustomFirebaseConfig = {
+        const defaultFirebaseConfig = {
+            apiKey: "AIzaSyAZkTPNGWC29HQ9fz4Zr8vK8Cfb4VYV6YA",
+            authDomain: "cleaning-3064f.firebaseapp.com",
+            projectId: "cleaning-3064f",
+            storageBucket: "cleaning-3064f.firebasestorage.app",
+            messagingSenderId: "1079173197088",
+            appId: "1:1079173197088:web:88bc7ef22bb1c1cfebfb45"
+        };
 
-    apiKey: "AIzaSyAZkTPNGWC29HQ9fz4Zr8vK8Cfb4VYV6YA",
-
-    authDomain: "cleaning-3064f.firebaseapp.com",
-
-    projectId: "cleaning-3064f",
-
-    storageBucket: "cleaning-3064f.firebasestorage.app",
-
-    messagingSenderId: "1079173197088",
-
-    appId: "1:1079173197088:web:88bc7ef22bb1c1cfebfb45"
-
-  };
- 
-
-        const firebaseConfig = (typeof __firebase_config !== 'undefined') 
+        const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) 
             ? JSON.parse(__firebase_config) 
-            : myCustomFirebaseConfig;
+            : defaultFirebaseConfig;
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'stadkoll-app-v3';
         
@@ -144,13 +143,13 @@
         let currentDayId = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()] || 'mon';
         if (currentDayId === 'sun' || currentDayId === 'sat') currentDayId = 'fri';
         let currentSeasonId = localStorage.getItem('current_season') || 'spring';
-        
         let checkedItems = JSON.parse(localStorage.getItem('cleaning_local_v3')) || {};
         let currentUser = null;
         let db = null;
         let auth = null;
         let unsubscribeSync = null;
         let isCloudConnected = false;
+        let isAuthLoading = false;
 
         // UI Functions
         window.switchView = (view) => { currentView = view; render(); };
@@ -164,17 +163,52 @@
             await syncToCloud();
         };
 
-        // Auth Actions (Username + Hidden Domain)
+        // Helper for UI Feedback
+        const setAuthMessage = (msg, type = 'error') => {
+            const el = document.getElementById('auth-message');
+            if (!el) return;
+            el.innerText = msg;
+            el.className = `text-[11px] font-bold p-2 rounded mt-3 animate-fade-in ${type === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-green-50 text-green-600'}`;
+        };
+
+        // Auth
         window.handleAuth = async (mode) => {
-            if (!auth) return alert("Firebase är inte konfigurerat");
+            if (!auth) return alert("Firebase saknas");
+            if (isAuthLoading) return;
+
             const user = document.getElementById('auth-user').value.trim();
             const pass = document.getElementById('auth-pass').value;
-            if(!user || !pass) return alert("Ange namn och lösenord");
+            
+            if(!user || !pass) {
+                setAuthMessage("Fyll i både namn och lösenord.");
+                return;
+            }
+
+            if(pass.length < 6) {
+                setAuthMessage("Lösenordet måste vara minst 6 tecken.");
+                return;
+            }
+
             const email = `${user.toLowerCase()}@stad.app`;
+            isAuthLoading = true;
+            render(); // Visa spinner i knappen
+
             try {
-                if(mode === 'login') await signInWithEmailAndPassword(auth, email, pass);
-                else await createUserWithEmailAndPassword(auth, email, pass);
-            } catch (e) { alert("Fel: " + e.message); }
+                if(mode === 'login') {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, pass);
+                }
+            } catch (e) {
+                console.error(e);
+                isAuthLoading = false;
+                let errorMsg = "Ett fel uppstod.";
+                if (e.code === 'auth/user-not-found') errorMsg = "Användaren hittades inte.";
+                if (e.code === 'auth/wrong-password') errorMsg = "Fel lösenord.";
+                if (e.code === 'auth/email-already-in-use') errorMsg = "Användarnamnet är upptaget.";
+                setAuthMessage(errorMsg);
+                render();
+            }
         };
 
         window.handleLogout = async () => {
@@ -204,8 +238,7 @@
             tabs.className = "flex overflow-x-auto gap-2 mb-4 no-scrollbar pb-1";
             cleaningData.weekly.forEach(day => {
                 const btn = document.createElement('button');
-                const isActive = currentDayId === day.id;
-                btn.className = `px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${isActive ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
+                btn.className = `px-5 py-2 rounded-full text-xs font-bold transition-all ${currentDayId === day.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
                 btn.innerText = day.short;
                 btn.onclick = () => window.setDay(day.id);
                 tabs.appendChild(btn);
@@ -214,19 +247,18 @@
 
             const day = cleaningData.weekly.find(d => d.id === currentDayId);
             const card = document.createElement('div');
-            card.className = "card bg-white rounded-xl card-shadow overflow-hidden border-t-4 mb-4";
+            card.className = "card bg-white rounded-xl card-shadow border-t-4 mb-4";
             card.style.borderTopColor = day.color;
-            let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold text-slate-800 text-base uppercase">${day.name}</h3><span class="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">VECKA ${currentWeek}</span></div><div class="space-y-2.5">`;
+            let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold uppercase text-slate-800">${day.name}</h3><span class="text-[10px] font-bold text-slate-400">VECKA ${currentWeek}</span></div><div class="space-y-2.5">`;
             day.tasks.forEach((t, i) => html += renderItemHtml(`${day.id}-t-${i}`, t));
-            const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
-            const rotTasks = day.rotation[rotKey] || [];
+            const actualRotKey = currentWeek === 4 ? 'v4' : (currentWeek === 2 ? 'v2' : 'v13');
+            const rotTasks = day.rotation[actualRotKey] || [];
             if (rotTasks.length > 0) {
-                html += `<div class="mt-2 pt-2 border-t"><p class="text-[9px] font-black text-slate-300 uppercase mb-2">Rotation (${rotKey === 'v13' ? 'V1/3' : rotKey.toUpperCase()})</p>`;
-                rotTasks.forEach((t, i) => html += renderItemHtml(`${day.id}-r-${rotKey}-${i}`, t));
+                html += `<div class="mt-2 pt-2 border-t"><p class="text-[9px] font-black text-slate-300 uppercase mb-2">Rotation (${actualRotKey.toUpperCase()})</p>`;
+                rotTasks.forEach((t, i) => html += renderItemHtml(`${day.id}-r-${actualRotKey}-${i}`, t));
                 html += `</div>`;
             }
-            const lId = `${day.id}-l`;
-            html += `<div class="py-2 border-t mt-2 flex items-center gap-3 active:bg-blue-50 transition-colors" onclick="toggleItem('${lId}')"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${checkedItems[lId] ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${checkedItems[lId] ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm font-semibold italic text-blue-600 ${checkedItems[lId] ? 'checked-text' : ''}">Tvätt: ${day.laundry}</span></div></div></div>`;
+            html += `<div class="py-2 border-t mt-2 flex items-center gap-3" onclick="toggleItem('${day.id}-l')"><div class="w-5 h-5 rounded border-2 flex items-center justify-center ${checkedItems[day.id+'-l'] ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${checkedItems[day.id+'-l'] ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic text-blue-600 ${checkedItems[day.id+'-l'] ? 'checked-text' : ''}">Tvätt: ${day.laundry}</span></div></div></div>`;
             card.innerHTML = html;
             container.appendChild(card);
         }
@@ -236,8 +268,7 @@
             tabs.className = "flex overflow-x-auto gap-2 mb-4 no-scrollbar pb-1";
             cleaningData.seasonal.forEach(s => {
                 const btn = document.createElement('button');
-                const isActive = currentSeasonId === s.id;
-                btn.className = `px-5 py-2 rounded-full text-xs font-bold transition-all ${isActive ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
+                btn.className = `px-5 py-2 rounded-full text-xs font-bold transition-all ${currentSeasonId === s.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
                 btn.innerText = s.name.split(' ')[0];
                 btn.onclick = () => { currentSeasonId = s.id; localStorage.setItem('current_season', s.id); render(); };
                 tabs.appendChild(btn);
@@ -246,12 +277,12 @@
             const season = cleaningData.seasonal.find(x => x.id === currentSeasonId);
             const contentDiv = document.createElement('div');
             contentDiv.className = "space-y-4";
-            let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3 tracking-widest" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">`;
+            let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">`;
             season.tasks.forEach((t, i) => sHtml += renderItemHtml(`${season.id}-st-${i}`, t));
-            sHtml += `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2 tracking-widest">Deep Clean</p>`;
+            sHtml += `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Deep Clean</p>`;
             season.deep.forEach((t, i) => sHtml += renderItemHtml(`${season.id}-sd-${i}`, t));
             sHtml += `</div></div></div>`;
-            let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3 tracking-widest">Kvartalsfix</h3><div class="space-y-2.5">`;
+            let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3">Kvartalsfix</h3><div class="space-y-2.5">`;
             cleaningData.quarterly.forEach((t, i) => qHtml += renderItemHtml(`q-${i}`, t));
             qHtml += `</div></div>`;
             contentDiv.innerHTML = sHtml + qHtml;
@@ -260,14 +291,56 @@
 
         function renderProfile(container) {
             if (!firebaseConfig) {
-                container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6 text-center"><h2 class="font-bold text-lg">Lokalt Läge</h2><p class="text-sm text-slate-500 mb-6">Molnkonfiguration saknas.</p></div>`;
+                container.innerHTML = `
+                    <div class="card bg-white rounded-xl card-shadow p-6 text-center w-full">
+                        <h2 class="font-bold text-lg mb-4 text-rose-600">Konfiguration saknas</h2>
+                        <p class="text-xs text-slate-500 mb-4">Ingen Firebase-konfiguration hittades i källkoden. Appen körs i offline-läge.</p>
+                    </div>
+                `;
                 return;
             }
             if (currentUser && !currentUser.isAnonymous && isCloudConnected) {
                 const name = currentUser.email.split('@')[0];
-                container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6 text-center"><h2 class="font-bold text-lg capitalize">${name}</h2><p class="text-sm text-slate-500 mb-6">Inloggad och synkad.</p><button onclick="handleLogout()" class="w-full py-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm">Logga ut</button></div>`;
+                container.innerHTML = `
+                    <div class="card bg-white rounded-xl card-shadow p-6 text-center w-full animate-fade-in">
+                        <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        </div>
+                        <h2 class="font-bold text-lg capitalize mb-1">${name}</h2>
+                        <p class="text-xs text-slate-500 mb-6">Inloggad och synkad mot molnet.</p>
+                        <button onclick="handleLogout()" class="w-full py-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-100 transition-colors">Logga ut</button>
+                    </div>
+                `;
             } else {
-                container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6"><h2 class="font-bold text-xl mb-6">Ditt Konto</h2><div class="space-y-4"><input id="auth-user" type="text" placeholder="Användarnamn" class="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-blue-500"><input id="auth-pass" type="password" placeholder="Lösenord" class="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-blue-500"><div class="grid grid-cols-2 gap-3"><button onclick="handleAuth('login')" class="py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Logga in</button><button onclick="handleAuth('register')" class="py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm">Registrera</button></div></div></div>`;
+                container.innerHTML = `
+                    <div class="card bg-white rounded-xl card-shadow p-6 w-full animate-fade-in">
+                        <h2 class="font-bold text-xl mb-1">Ditt Konto</h2>
+                        <p class="text-xs text-slate-500 mb-6 italic uppercase tracking-wider">Välj ett namn för att synka listan</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Användarnamn</label>
+                                <input id="auth-user" type="text" placeholder="T.ex. Familjen" class="w-full p-3 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-black text-slate-400 uppercase ml-1">Lösenord</label>
+                                <input id="auth-pass" type="password" placeholder="Minst 6 tecken" class="w-full p-3 bg-slate-50 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                            </div>
+
+                            <div id="auth-message"></div>
+
+                            <div class="grid grid-cols-2 gap-3 pt-2">
+                                <button onclick="handleAuth('login')" class="py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex justify-center items-center gap-2">
+                                    ${isAuthLoading ? '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>' : ''}
+                                    Logga in
+                                </button>
+                                <button onclick="handleAuth('register')" class="py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">
+                                    Skapa konto
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
         }
 
@@ -279,9 +352,7 @@
         const syncToCloud = async () => {
             if (!currentUser || !db || !isCloudConnected) return;
             try {
-                // VIKTIGT: Spara alltid under användarens UID för att undvika krockar
-                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'cleaningData', 'state');
-                await setDoc(docRef, { items: checkedItems }, { merge: true });
+                await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'cleaningData', 'state'), { items: checkedItems }, { merge: true });
             } catch (e) { console.warn("Sync fail", e); }
         };
 
@@ -293,19 +364,19 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 onAuthStateChanged(auth, async (user) => {
+                    isAuthLoading = false;
                     if (!user) { try { await signInAnonymously(auth); } catch (e) {} return; }
                     currentUser = user;
-                    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'cleaningData', 'state');
                     if(unsubscribeSync) unsubscribeSync();
-                    unsubscribeSync = onSnapshot(docRef, (docSnap) => {
+                    unsubscribeSync = onSnapshot(doc(db, 'artifacts', appId, 'users', user.uid, 'cleaningData', 'state'), (docSnap) => {
                         isCloudConnected = true;
                         statusEl.innerText = user.isAnonymous ? "Anonym synk" : user.email.split('@')[0];
                         statusEl.className = "text-[10px] text-green-500 font-bold uppercase truncate max-w-[80px]";
                         if (docSnap.exists()) {
                             checkedItems = docSnap.data().items || {};
                             localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
-                            render();
                         }
+                        render();
                     }, (err) => {
                         isCloudConnected = false;
                         statusEl.innerText = err.code === 'permission-denied' ? "Behörighet saknas" : "Offline";
