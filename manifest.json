@@ -1,0 +1,23 @@
+{
+"name": "Städlista",
+"short_name": "Städlista",
+"description": "Din interaktiva städpartner för hemmet.",
+"start_url": "./index.html",
+"display": "standalone",
+"background_color": "#f8fafc",
+"theme_color": "#3b82f6",
+"orientation": "portrait",
+"icons": [
+{
+"src": "https://www.google.com/search?q=https://img.icons8.com/fluency/192/broom.png",
+"sizes": "192x192",
+"type": "image/png",
+"purpose": "any maskable"
+},
+{
+"src": "https://www.google.com/search?q=https://img.icons8.com/fluency/512/broom.png",
+"sizes": "512x512",
+"type": "image/png"
+}
+]
+}
