@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>StädKoll - Din Interaktiva Städpartner</title>
+    <title>Städlista</title>
     
-    <!-- App-inställningar för Android & iOS -->
+    <!-- PWA & Mobilinställningar -->
+    <link rel="manifest" href="manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#f8fafc">
+    <meta name="theme-color" content="#3b82f6">
+    <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/96/broom.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -35,7 +37,7 @@
             <h1 class="text-xl font-bold text-slate-800 uppercase tracking-tight">Städlista</h1>
             <div class="flex items-center gap-2">
                 <span id="sync-status" class="text-[10px] text-amber-500 font-bold uppercase tracking-wide">Laddar...</span>
-                <span id="today-suggestion" class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-black uppercase"></span>
+                <span id="today-suggestion" class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter"></span>
             </div>
         </div>
         <div id="week-selector-ui" class="flex gap-1 bg-slate-100 p-1 rounded-lg">
@@ -48,28 +50,28 @@
         </div>
     </header>
 
-    <!-- Main Content -->
     <main id="app-content" class="p-4 max-w-lg mx-auto space-y-4">
+        <!-- Laddningsindikator visas tills JS tar över -->
         <div class="flex justify-center py-12">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
     </main>
 
     <!-- Navigation -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around items-center h-16 shadow-[0_-2px_10_rgba(0,0,0,0.05)]">
-        <button onclick="switchView('weekly')" id="nav-weekly" class="flex flex-col items-center gap-1 transition-colors">
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around items-center h-16 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        <button onclick="switchView('weekly')" id="nav-weekly" class="flex flex-col items-center gap-1">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z" />
             </svg>
             <span class="text-[10px] font-bold uppercase">Vecka</span>
         </button>
-        <button onclick="switchView('seasonal')" id="nav-seasonal" class="flex flex-col items-center gap-1 transition-colors">
+        <button onclick="switchView('seasonal')" id="nav-seasonal" class="flex flex-col items-center gap-1">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <span class="text-[10px] font-bold uppercase">Säsong</span>
         </button>
-        <button onclick="switchView('profile')" id="nav-profile" class="flex flex-col items-center gap-1 transition-colors">
+        <button onclick="switchView('profile')" id="nav-profile" class="flex flex-col items-center gap-1">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
             </svg>
@@ -79,7 +81,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, onSnapshot, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // ==========================================
@@ -98,6 +100,15 @@
             : defaultFirebaseConfig;
 
         const appId = 'stadkoll-app-v3';
+
+        // Registrera Service Worker för Offline-stöd
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(reg => {
+                    console.log('SW registrerad');
+                }).catch(err => console.log('SW-fel:', err));
+            });
+        }
         
         const cleaningData = {
             weekly: [
@@ -142,16 +153,13 @@
             return 4;
         };
 
-        // State
+        // State Init
         let currentView = 'weekly';
         let currentWeek = getSuggestedWeek();
         let currentDayId = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()] || 'mon';
         if (currentDayId === 'sun' || currentDayId === 'sat') currentDayId = 'fri';
         let currentSeasonId = localStorage.getItem('current_season') || 'spring';
-        
-        // Initial load from local storage
         let checkedItems = JSON.parse(localStorage.getItem('cleaning_local_v3')) || {};
-        
         let currentUser = null;
         let db = null;
         let auth = null;
@@ -159,12 +167,11 @@
         let isCloudConnected = false;
         let authStatus = { loading: false, message: '', type: '' };
 
-        // UI Helpers
+        // UI Functions
         window.switchView = (view) => { currentView = view; render(); };
         window.setWeek = (w) => { currentWeek = w; render(); };
         window.autoSetWeek = () => { currentWeek = getSuggestedWeek(); render(); };
         window.setDay = (dayId) => { currentDayId = dayId; render(); };
-        
         window.toggleItem = async (id) => {
             checkedItems[id] = !checkedItems[id];
             localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
@@ -177,33 +184,20 @@
             if (!auth) return;
             const user = document.getElementById('auth-user').value.trim();
             const pass = document.getElementById('auth-pass').value;
-            
             if(!user || !pass) {
-                authStatus = { loading: false, message: "Fyll i både namn och lösenord.", type: "error" };
+                authStatus = { loading: false, message: "Ange både namn och lösenord.", type: "error" };
                 render();
                 return;
             }
-
             const email = `${user.toLowerCase()}@stad.app`;
             authStatus = { loading: true, message: mode === 'login' ? "Loggar in..." : "Skapar konto...", type: "info" };
             render();
-
             try {
-                if(mode === 'login') {
-                    await signInWithEmailAndPassword(auth, email, pass);
-                } else {
-                    await createUserWithEmailAndPassword(auth, email, pass);
-                }
-                authStatus = { loading: false, message: "Inloggning lyckades!", type: "success" };
-                render();
+                if(mode === 'login') await signInWithEmailAndPassword(auth, email, pass);
+                else await createUserWithEmailAndPassword(auth, email, pass);
             } catch (e) {
                 console.error(e);
-                let msg = "Ett fel uppstod.";
-                if (e.code === 'auth/user-not-found') msg = "Användaren hittades inte.";
-                if (e.code === 'auth/wrong-password') msg = "Fel lösenord.";
-                if (e.code === 'auth/email-already-in-use') msg = "Användarnamnet är upptaget.";
-                if (e.code === 'auth/invalid-credential') msg = "Felaktiga uppgifter.";
-                authStatus = { loading: false, message: msg, type: "error" };
+                authStatus = { loading: false, message: "Fel: " + e.message, type: "error" };
                 render();
             }
         };
@@ -216,16 +210,12 @@
         };
 
         const syncToCloud = async () => {
-            // Spara alltid lokalt först
             localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
-            
-            // Endast molnsynk om vi är inloggade med RIKTIGT konto
             if (!currentUser || currentUser.isAnonymous || !db || !isCloudConnected) return;
-            
             try {
                 const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'cleaningData', 'state');
                 await setDoc(docRef, { items: checkedItems }, { merge: true });
-            } catch (e) { console.warn("Cloud sync failed", e); }
+            } catch (e) { console.warn("Cloud sync fail", e); }
         };
 
         const render = () => {
@@ -233,7 +223,7 @@
             if (!container) return;
             container.innerHTML = '';
             
-            // Nav bar update
+            // Nav bar styling
             document.getElementById('nav-weekly').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'weekly' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('nav-seasonal').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'seasonal' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('nav-profile').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'profile' ? 'text-blue-600' : 'text-slate-400'}`;
@@ -255,18 +245,17 @@
                 tabs.appendChild(btn);
             });
             container.appendChild(tabs);
-
             const day = cleaningData.weekly.find(d => d.id === currentDayId);
             const card = document.createElement('div');
             card.className = "card bg-white rounded-xl card-shadow border-t-4 mb-4";
             card.style.borderTopColor = day.color;
             let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold uppercase text-slate-800">${day.name}</h3><span class="text-[10px] font-bold text-slate-400">VECKA ${currentWeek}</span></div><div class="space-y-2.5">`;
             day.tasks.forEach((t, i) => html += renderItemHtml(`${day.id}-t-${i}`, t));
-            const actualRotKey = currentWeek === 4 ? 'v4' : (currentWeek === 2 ? 'v2' : 'v13');
-            const rotTasks = day.rotation[actualRotKey] || [];
+            const rotKey = currentWeek === 4 ? 'v4' : (currentWeek === 2 ? 'v2' : 'v13');
+            const rotTasks = day.rotation[rotKey] || [];
             if (rotTasks.length > 0) {
-                html += `<div class="mt-2 pt-2 border-t"><p class="text-[9px] font-black text-slate-300 uppercase mb-2">Rotation (${actualRotKey.toUpperCase()})</p>`;
-                rotTasks.forEach((t, i) => html += renderItemHtml(`${day.id}-r-${actualRotKey}-${i}`, t));
+                html += `<div class="mt-2 pt-2 border-t"><p class="text-[9px] font-black text-slate-300 uppercase mb-2">Rotation (${rotKey.toUpperCase()})</p>`;
+                rotTasks.forEach((t, i) => html += renderItemHtml(`${day.id}-r-${rotKey}-${i}`, t));
                 html += `</div>`;
             }
             html += `<div class="py-2 border-t mt-2 flex items-center gap-3" onclick="toggleItem('${day.id}-l')"><div class="w-5 h-5 rounded border-2 flex items-center justify-center ${checkedItems[day.id+'-l'] ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${checkedItems[day.id+'-l'] ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic text-blue-600 ${checkedItems[day.id+'-l'] ? 'checked-text' : ''}">Tvätt: ${day.laundry}</span></div></div></div>`;
@@ -298,12 +287,7 @@
         }
 
         function renderProfile(container) {
-            if (!firebaseConfig) {
-                container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6 text-center w-full animate-fade-in"><h2 class="font-bold text-lg text-rose-600 mb-2">Konfiguration saknas</h2><p class="text-xs text-slate-500">Körs i offline-läge.</p></div>`;
-                return;
-            }
-
-            if (currentUser && !currentUser.isAnonymous) {
+            if (currentUser && !currentUser.isAnonymous && isCloudConnected) {
                 const name = currentUser.email.split('@')[0];
                 container.innerHTML = `
                     <div class="card bg-white rounded-xl card-shadow p-6 text-center w-full animate-fade-in">
@@ -311,7 +295,7 @@
                             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                         </div>
                         <h2 class="font-bold text-lg capitalize mb-1">${name}</h2>
-                        <p class="text-xs text-green-600 font-bold mb-6">MOLNSYNC AKTIV</p>
+                        <p class="text-xs text-green-600 font-bold mb-6 italic tracking-widest uppercase">Molnsync Aktiv</p>
                         <button onclick="handleLogout()" class="w-full py-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-100 transition-colors">Logga ut</button>
                     </div>
                 `;
@@ -320,21 +304,15 @@
                     <div class="card bg-white rounded-xl card-shadow p-6 w-full animate-fade-in">
                         <h2 class="font-bold text-xl mb-1">Ditt Konto</h2>
                         <p class="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-6">Synka listan mellan enheter</p>
-                        
                         <div class="space-y-4">
                             <input id="auth-user" type="text" placeholder="Användarnamn" class="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-blue-500 transition-all">
                             <input id="auth-pass" type="password" placeholder="Lösenord" class="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-blue-500 transition-all">
-                            
-                            ${authStatus.message ? `<div class="p-2 rounded text-[11px] font-bold text-center ${authStatus.type === 'error' ? 'bg-rose-50 text-rose-600' : (authStatus.type === 'success' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600')}">${authStatus.message}</div>` : ''}
-
+                            ${authStatus.message ? `<div class="p-2 rounded text-[11px] font-bold text-center ${authStatus.type === 'error' ? 'bg-rose-50 text-rose-600' : (authStatus.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600')}">${authStatus.message}</div>` : ''}
                             <div class="grid grid-cols-2 gap-3 pt-2">
                                 <button onclick="handleAuth('login')" class="py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                                    ${authStatus.loading ? '<div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>' : ''}
-                                    Logga in
+                                    ${authStatus.loading ? '<div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>' : ''} Logga in
                                 </button>
-                                <button onclick="handleAuth('register')" class="py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">
-                                    Skapa konto
-                                </button>
+                                <button onclick="handleAuth('register')" class="py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">Skapa konto</button>
                             </div>
                         </div>
                     </div>
@@ -349,64 +327,37 @@
 
         const initFirebase = async () => {
             const statusEl = document.getElementById('sync-status');
-            
-            // FÖRSTA FIXEN: Rendera lokala listor omedelbart
             render();
-
             if (!firebaseConfig) { statusEl.innerText = "Lokalt"; return; }
-            
             try {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
-                
+                await enableIndexedDbPersistence(db).catch(() => {});
                 onAuthStateChanged(auth, async (user) => {
-                    // Återställ laddnings-feedback när auth-state ändras
-                    if (authStatus.loading) {
-                        authStatus = { loading: false, message: 'Klart!', type: 'success' };
-                    }
-
-                    if (!user) { 
-                        try { await signInAnonymously(auth); } catch (e) {} 
-                        return; 
-                    }
-                    
+                    authStatus.loading = false;
                     currentUser = user;
-                    
-                    if (user.isAnonymous) {
-                        // Anonym: Endast lokal lagring.
-                        isCloudConnected = false;
-                        statusEl.innerText = "Lokal lagring";
-                        statusEl.className = "text-[10px] text-slate-400 font-bold uppercase";
-                        render();
-                    } else {
-                        // Riktigt konto: Aktivera synk
+                    if (user && !user.isAnonymous) {
+                        authStatus.message = "Inloggad!"; authStatus.type = "success";
                         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'cleaningData', 'state');
                         if(unsubscribeSync) unsubscribeSync();
-                        
                         unsubscribeSync = onSnapshot(docRef, (docSnap) => {
                             isCloudConnected = true;
                             statusEl.innerText = user.email.split('@')[0];
                             statusEl.className = "text-[10px] text-green-500 font-bold uppercase truncate max-w-[80px]";
-                            
                             if (docSnap.exists()) {
-                                const cloudItems = docSnap.data().items || {};
-                                checkedItems = { ...checkedItems, ...cloudItems };
+                                checkedItems = { ...checkedItems, ...docSnap.data().items };
                                 localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
                             }
                             render();
-                        }, (err) => {
-                            isCloudConnected = false;
-                            statusEl.innerText = "Sync-paus";
-                            statusEl.className = "text-[10px] text-rose-500 font-bold uppercase";
-                            render();
-                        });
+                        }, () => { isCloudConnected = false; statusEl.innerText = "Sync-paus"; render(); });
+                    } else {
+                        isCloudConnected = false; statusEl.innerText = "Lokalt"; statusEl.className = "text-[10px] text-slate-400 font-bold uppercase";
+                        if (!user) signInAnonymously(auth).catch(() => {});
+                        render();
                     }
                 });
-            } catch (e) { 
-                statusEl.innerText = "Offline"; 
-                render();
-            }
+            } catch (e) { statusEl.innerText = "Offline"; render(); }
         };
 
         document.getElementById('today-suggestion').innerText = `Idag: V${getSuggestedWeek()}`;
@@ -414,3 +365,4 @@
     </script>
 </body>
 </html>
+
