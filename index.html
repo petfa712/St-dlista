@@ -178,18 +178,18 @@
                     v2: ['Sänggavel & under sängen'],
                     v4: ['Dammsuga tomma rum noggrant', 'Moppa golven ordentligt']
                 }},
-                { id: 'fri', name: 'Fredag', short: 'Fre', color: '#f43f5e', printClass: 'card-top-rose', tasks: ['Byt sängkläder', 'Robot', 'Helgpiff'], laundry: 'Sängkläder', rotation: {
+                { id: 'fri', name: 'Fredag', short: 'Fre', color: '#f43f5e', printClass: 'card-top-rose', tasks: ['Byt sängkläder', 'Robotdammsugare', 'Helgpiff'], laundry: 'Sängkläder', rotation: {
                     v2: ['Slänga trasor & svampar'],
                     v4: ['Tvättmaskinsrengöring']
                 }}
             ],
             seasonal: [
-                { id: 'spring', name: 'Vår (Mar/Apr)', color: '#10b981', tasks: ['Putsa alla fönster', 'Balkongen: Golv & möbler', 'Olja fönster och dörrar', 'Plantera om växter', 'Tvätta täcken & kuddar', 'Undan vinter / Fram sommar'], deep: ['Tvätta/Steama soffan', 'Städa under soffa & matta', 'Städa under stora möbler', 'Piska matta', 'Tvätta gardiner', 'Rensa förråd'] },
-                { id: 'summer', name: 'Sommar (Jun/Jul)', color: '#0ea5e9', tasks: ['Torka av Väggar & Dörrar', 'Lampor', 'Elementen'], deep: ['Städa under maskiner', 'Sortera bort prylar', 'Städa skåp tvättstuga', 'Städa skåp badrum', 'Borsta fogar/hörn', 'Avkalka dusch'] },
-                { id: 'autumn', name: 'Höst (Sep/Okt)', color: '#f97316', tasks: ['Lufta element', 'Putsa fönster & städa balkong', 'Packa undan möbler', 'Tvätta täcken & kuddar', 'Undan sommar/Fram vinter', 'Hall: Slask-prep'], deep: ['Städa garderoben', 'Sortera bort kläder', 'Städa byrå & hyllor', 'Städa klädkammare', 'Städa extrarum noggrant'] },
-                { id: 'winter', name: 'Vinter (Dec/Jan)', color: '#6366f1', tasks: ['Kontrollera lister', 'Frosta av frysen'], deep: ['Städa i köksskåpen', 'Sortera bort kökssaker', 'Städa bakom kyl/ugn', 'Bokhyllor: Avtorkning', 'Garderob: Rensa kläder'] }
+                { id: 'spring', name: 'Vår (Mar/Apr)', color: '#10b981', deepTitle: 'vardagsrum & hall', tasks: ['Putsa alla fönster', 'Smörj dörrar och fönster', 'Balkongen: Golv & möbler', 'Plantera om växter', 'Tvätta täcken & kuddar', 'Undan vinter / Fram sommar'], deep: ['Tvätta/Steama soffan', 'Städa under soffa & matta', 'Städa under stora möbler', 'Piska matta', 'Tvätta gardiner', 'Rensa förråd'] },
+                { id: 'summer', name: 'Sommar (Jun/Jul)', color: '#0ea5e9', deepTitle: 'badrum & tvättstuga', tasks: ['Torka av Väggar & Dörrar', 'Lampor', 'Elementen'], deep: ['Städa under maskiner', 'Sortera bort prylar', 'Städa skåp tvättstuga', 'Städa skåp badrum', 'Borsta fogar/hörn', 'Avkalka dusch'] },
+                { id: 'autumn', name: 'Höst (Sep/Okt)', color: '#f97316', deepTitle: 'sovrum & klädkammare', tasks: ['Lufta element', 'Putsa fönster & städa balkong', 'Packa undan möbler', 'Tvätta täcken & kuddar', 'Undan sommar/Fram vinter', 'Hall: Slask-prep'], deep: ['Städa garderoben', 'Sortera bort kläder', 'Städa byrå & hyllor', 'Städa klädkammare', 'Städa extrarum noggrant'] },
+                { id: 'winter', name: 'Vinter (Dec/Jan)', color: '#6366f1', deepTitle: 'kök', tasks: ['Kontrollera lister', 'Frosta av frysen'], deep: ['Städa i köksskåpen', 'Sortera bort kökssaker', 'Städa bakom kyl/ugn', 'Bokhyllor: Avtorkning', 'Garderob: Rensa kläder'] }
             ],
-            quarterly: ['Fläktfilter', 'Brandlarm och brandsläckare', 'Ugnen', 'Kylen', 'Vattenlås', 'Madrasskydd', 'Gör rent madrassen', 'Soffa & fåtölj', 'Byt tandborste', 'Avkalka']
+            quarterly: ['Kontrollera Brandlarm', 'Kontrollera brandsläckare', 'Fläktfilter', 'Ugnen', 'Kylen', 'Vattenlås', 'Madrasskydd', 'Gör rent madrassen', 'Soffa & fåtölj', 'Byt tandborste', 'Avkalka']
         };
 
         const getISOWeek = (d) => {
@@ -340,7 +340,7 @@
                 html = `<div class="print-page"><div class="print-header"><h2>1. Veckorutin & Rotation</h2></div><div class="print-weekly-top">${renderPrintCard(cleaningData.weekly[0])}${renderPrintCard(cleaningData.weekly[1])}${renderPrintCard(cleaningData.weekly[2])}</div><div class="print-weekly-bottom">${renderPrintCard(cleaningData.weekly[3])}${renderPrintCard(cleaningData.weekly[4])}</div></div>`;
             } else {
                 const season = cleaningData.seasonal.find(x => x.id === currentSeasonId);
-                html = `<div class="print-page"><div class="print-header"><h2>${season.name}</h2></div><div class="print-vertical-stack"><div class="print-card" style="border-left: 8px solid ${season.color} !important; background:#f8fafc !important;"><div class="section-title" style="border-bottom-color: ${season.color} !important; color: ${season.color} !important;">${season.name.split(' ')[0]}städ</div><div style="font-size:12px; line-height:2.0; margin-bottom:15px;">${season.tasks.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div><div style="border-top:1px solid #ddd; padding-top:10px;"><p style="font-weight:bold; color:#94a3b8; font-size:9px; margin-bottom:6px; text-transform:uppercase;">Deep Clean</p><div style="font-size:12px; line-height:2.0;">${season.deep.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div></div></div><div class="print-card" style="border-left: 8px solid #94a3b8 !important; margin-top:20px !important;"><div class="section-title" style="border-bottom-color: #94a3b8 !important; color: #64748b !important;">Kvartalsfix</div><div style="font-size:12px; line-height:2.2;">${cleaningData.quarterly.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div></div></div></div>`;
+                html = `<div class="print-page"><div class="print-header"><h2>${season.name}</h2></div><div class="print-vertical-stack"><div class="print-card" style="border-left: 8px solid ${season.color} !important; background:#f8fafc !important;"><div class="section-title" style="border-bottom-color: ${season.color} !important; color: ${season.color} !important;">${season.name.split(' ')[0]}städ</div><div style="font-size:12px; line-height:2.0; margin-bottom:15px;">${season.tasks.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div><div style="border-top:1px solid #ddd; padding-top:10px;"><p style="font-weight:bold; color:#94a3b8; font-size:9px; margin-bottom:6px; text-transform:uppercase;">Storstäd ${season.deepTitle}</p><div style="font-size:12px; line-height:2.0;">${season.deep.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div></div></div><div class="print-card" style="border-left: 8px solid #94a3b8 !important; margin-top:20px !important;"><div class="section-title" style="border-bottom-color: #94a3b8 !important; color: #64748b !important;">Kvartalsfix</div><div style="font-size:12px; line-height:2.2;">${cleaningData.quarterly.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div></div></div></div>`;
             }
             printArea.innerHTML = html;
         };
@@ -370,15 +370,12 @@
             if (!container) return;
             container.innerHTML = '';
             
-            // Hantera nav-styling
             document.getElementById('nav-weekly').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'weekly' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('nav-seasonal').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'seasonal' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('nav-profile').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'profile' ? 'text-blue-600' : 'text-slate-400'}`;
             
-            // Veckoväljare
             document.getElementById('week-selector-ui').style.display = currentView === 'weekly' ? 'flex' : 'none';
             
-            // NYHET: Gråa ut autotext vid manuellt val
             const isAuto = !localStorage.getItem('cleaning_selected_week');
             const autoBtn = document.getElementById('btn-auto');
             if (autoBtn) {
@@ -460,7 +457,7 @@
             
             let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">` + 
                 season.tasks.map((t, i) => renderItemHtml(`${season.id}-st-${i}`, t)).join('') + 
-                `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Deep Clean</p>` +
+                `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Storstäd ${season.deepTitle}</p>` +
                 season.deep.map((t, i) => renderItemHtml(`${season.id}-sd-${i}`, t)).join('') + `</div></div></div>`;
             let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3">Kvartalsfix</h3><div class="space-y-2.5">` + 
                 cleaningData.quarterly.map((t, i) => renderItemHtml(`${season.id}-q-${i}`, t)).join('') + `</div></div>`;
