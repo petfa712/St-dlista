@@ -15,18 +15,140 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
         .checked-text { text-decoration: line-through; color: #94a3b8; }
         .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
+        /* FIX: Förhindra läckage av utskriftsinnehåll i app-gränssnittet */
+        #print-area { 
+            display: none !important; 
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-5px); }
             to { opacity: 1; transform: translateY(0); }
         }
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+
+        /* UTSKRIFTSSTILAR */
+        @media print {
+            @page { 
+                margin: 0.5cm;
+            }
+            
+            body { background: white !important; padding: 0 !important; margin: 0 !important; }
+            header, nav, #app-content, #reset-modal { display: none !important; }
+            
+            #print-area { 
+                display: block !important; 
+                position: static !important;
+                left: auto !important;
+                top: auto !important;
+                width: 100% !important; 
+                visibility: visible !important;
+            }
+            
+            .print-page { 
+                width: 100% !important;
+                page-break-after: avoid;
+                page-break-inside: avoid;
+            }
+
+            .print-header {
+                text-align: center;
+                margin-bottom: 15px;
+            }
+
+            .print-header h2 {
+                font-size: 20px;
+                font-weight: 800;
+                text-transform: uppercase;
+            }
+            
+            /* Veckosidan: 3 överst, 2 under */
+            .print-weekly-top {
+                display: grid !important;
+                grid-template-columns: repeat(3, 1fr) !important;
+                gap: 10px !important;
+                width: 100% !important;
+                margin-bottom: 10px !important;
+            }
+            
+            .print-weekly-bottom {
+                display: grid !important;
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 10px !important;
+                width: 66% !important; 
+                margin: 0 auto !important;
+            }
+            
+            .print-card {
+                border: 1.5px solid #cbd5e1 !important;
+                border-radius: 10px;
+                padding: 12px;
+                background: white !important;
+                break-inside: avoid;
+            }
+
+            .print-box { 
+                width: 14px; 
+                height: 14px; 
+                border: 1.5px solid #64748b !important; 
+                border-radius: 3px;
+                display: inline-block; 
+                margin-right: 6px; 
+                vertical-align: middle;
+            }
+
+            .print-tag { 
+                font-size: 8px; 
+                padding: 1px 4px; 
+                border-radius: 3px; 
+                color: white !important; 
+                font-weight: 800; 
+                margin-right: 4px; 
+                text-transform: uppercase; 
+                display: inline-block;
+                min-width: 32px;
+                text-align: center;
+            }
+
+            .tag-v13 { background-color: #6366f1 !important; }
+            .tag-v2 { background-color: #10b981 !important; }
+            .tag-v4 { background-color: #f59e0b !important; }
+            
+            .card-top-blue { border-top: 6px solid #3b82f6 !important; }
+            .card-top-purple { border-top: 6px solid #9333ea !important; }
+            .card-top-emerald { border-top: 6px solid #10b981 !important; }
+            .card-top-amber { border-top: 6px solid #f59e0b !important; }
+            .card-top-rose { border-top: 6px solid #f43f5e !important; }
+
+            .section-title {
+                border-bottom: 2px solid #3b82f6 !important;
+                padding-bottom: 3px;
+                margin-bottom: 8px;
+                color: #1d4ed8 !important;
+                font-weight: 800;
+                text-transform: uppercase;
+                font-size: 11px;
+            }
+
+            .print-item {
+                display: flex;
+                align-items: flex-start;
+                margin-bottom: 4px;
+                font-size: 10px;
+                line-height: 1.2;
+            }
+
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen pb-24 text-slate-900">
@@ -55,6 +177,9 @@
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
     </main>
+
+    <!-- Utskriftsyta -->
+    <div id="print-area"></div>
 
     <!-- Modal för Nollställning -->
     <div id="reset-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden px-6">
@@ -109,46 +234,40 @@
 
         const appId = 'stadkoll-app-v3';
 
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(() => {});
-            });
-        }
-        
         const cleaningData = {
             weekly: [
-                { id: 'mon', name: 'Måndag', short: 'Mån', color: '#3b82f6', tasks: ['Rengör spis & bänk', 'Sopsortering', 'Diskho'], laundry: 'Handdukar', rotation: {
+                { id: 'mon', name: 'Måndag', short: 'Mån', color: '#3b82f6', printClass: 'card-top-blue', tasks: ['Rengör spis & bänk', 'Sopsortering', 'Diskho'], laundry: 'Handdukar', rotation: {
                     v13: ['Rengör mikron', 'Smutsiga handtag'],
                     v2: ['Tvätta grytlappar', 'Diskmaskin + filter', 'Olja träverktyg'],
                     v4: ['Under diskbänken', 'Vattenlås (medel)', 'Rengör kranen']
                 }},
-                { id: 'tue', name: 'Tisdag', short: 'Tis', color: '#9333ea', tasks: ['Toalett', 'Putsa speglar', 'Handfat', 'Robotdammsugare'], laundry: '40°/30°', rotation: {
+                { id: 'tue', name: 'Tisdag', short: 'Tis', color: '#9333ea', printClass: 'card-top-purple', tasks: ['Toalett', 'Putsa speglar', 'Handfat', 'Robotdammsugare'], laundry: '40°/30°', rotation: {
                     v13: ['Skrubba duschen'],
                     v2: ['Badrumsmatta', 'Toalett noggrant'],
                     v4: ['Koka tandborste']
                 }},
-                { id: 'wed', name: 'Onsdag', short: 'Ons', color: '#10b981', tasks: ['Damma ytor', 'Piffa kuddar/filtar'], laundry: 'Träningskläder', rotation: {
+                { id: 'wed', name: 'Onsdag', short: 'Ons', color: '#10b981', printClass: 'card-top-emerald', tasks: ['Damma ytor', 'Piffa kuddar/filtar'], laundry: 'Träningskläder', rotation: {
                     v13: ['Lister & dörrar'],
                     v2: ['Lampor & ventiler'],
                     v4: ['Bokhyllor', 'Damma tomma rum']
                 }},
-                { id: 'thu', name: 'Torsdag', short: 'Tor', color: '#f59e0b', tasks: ['Töm roboten', 'Dammsuga'], laundry: 'Vit / underkläder', rotation: {
+                { id: 'thu', name: 'Torsdag', short: 'Tor', color: '#f59e0b', printClass: 'card-top-amber', tasks: ['Töm roboten', 'Dammsuga'], laundry: 'Vit / underkläder', rotation: {
                     v13: ['Dammsuga soffan'],
                     v2: ['Sänggavel & under sängen'],
                     v4: ['Dammsuga tomma rum noggrant', 'Moppa golven ordentligt']
                 }},
-                { id: 'fri', name: 'Fredag', short: 'Fre', color: '#f43f5e', tasks: ['Byt sängkläder', 'Robot', 'Helgpiff'], laundry: 'Sängkläder', rotation: {
+                { id: 'fri', name: 'Fredag', short: 'Fre', color: '#f43f5e', printClass: 'card-top-rose', tasks: ['Byt sängkläder', 'Robot', 'Helgpiff'], laundry: 'Sängkläder', rotation: {
                     v2: ['Slänga trasor & svampar'],
                     v4: ['Tvättmaskinsrengöring']
                 }}
             ],
             seasonal: [
-                { id: 'spring', name: 'Vår (Mar/Apr)', color: '#10b981', tasks: ['Putsa fönster', 'Balkongstäd', 'Plantera om', 'Tvätta täcken', 'Vinter ut / Sommar in'], deep: ['Tvätta soffan', 'Under stora möbler', 'Piska matta', 'Tvätta gardiner', 'Rensa förråd'] },
-                { id: 'summer', name: 'Sommar (Jun/Jul)', color: '#0ea5e9', tasks: ['Torka väggar', 'Lampor', 'Element'], deep: ['Under maskiner', 'Skåp tvättstuga', 'Skåp badrum', 'Borsta fogar', 'Avkalka dusch'] },
-                { id: 'autumn', name: 'Höst (Sep/Okt)', color: '#f97316', tasks: ['Putsa fönster', 'Städa balkong', 'Tvätta täcken', 'Sommar ut / Vinter in', 'Hall: Slask-prep'], deep: ['Garderob', 'Byrå & hyllor', 'Klädkammare', 'Extrarum noggrant'] },
-                { id: 'winter', name: 'Vinter (Dec/Jan)', color: '#6366f1', tasks: ['Kontrollera lister', 'Frosta av frys'], deep: ['Köksskåp', 'Bakom kyl/ugn', 'Bokhyllor', 'Garderob: Rensa'] }
+                { id: 'spring', name: 'Vår (Mar/Apr)', color: '#10b981', tasks: ['Putsa alla fönster', 'Balkongen: Golv & möbler', 'Plantera om växter', 'Tvätta täcken & kuddar', 'Undan vinter / Fram sommar'], deep: ['Tvätta/Steama soffan', 'Städa under soffa & matta', 'Städa under stora möbler', 'Piska matta', 'Tvätta gardiner', 'Rensa förråd'] },
+                { id: 'summer', name: 'Sommar (Jun/Jul)', color: '#0ea5e9', tasks: ['Torka av Väggar & Dörrar', 'Lampor', 'Elementen'], deep: ['Städa under maskiner', 'Sortera bort prylar', 'Städa skåp tvättstuga', 'Städa skåp badrum', 'Borsta fogar/hörn', 'Avkalka dusch'] },
+                { id: 'autumn', name: 'Höst (Sep/Okt)', color: '#f97316', tasks: ['Putsa fönster & städa balkong', 'Packa undan möbler', 'Tvätta täcken & kuddar', 'Undan sommar/Fram vinter', 'Hall: Slask-prep'], deep: ['Städa garderoben', 'Sortera bort kläder', 'Städa byrå & hyllor', 'Städa klädkammare', 'Städa extrarum noggrant'] },
+                { id: 'winter', name: 'Vinter (Dec/Jan)', color: '#6366f1', tasks: ['Kontrollera lister', 'Frosta av frysen'], deep: ['Städa i köksskåpen', 'Sortera bort kökssaker', 'Städa bakom kyl/ugn', 'Bokhyllor: Avtorkning', 'Garderob: Rensa kläder'] }
             ],
-            quarterly: ['Fläktfilter', 'Ugnen', 'Kylen', 'Vattenlås', 'Madrasskydd', 'Gör rent madrass', 'Soffa & fåtölj', 'Byt tandborste', 'Avkalka']
+            quarterly: ['Fläktfilter', 'Ugnen', 'Kylen', 'Vattenlås', 'Madrasskydd', 'Gör rent madrassen', 'Soffa & fåtölj', 'Byt tandborste', 'Avkalka']
         };
 
         const getSuggestedWeek = () => {
@@ -159,7 +278,6 @@
             return 4;
         };
 
-        // State Init
         let currentView = 'weekly';
         let currentWeek = getSuggestedWeek();
         let currentDayId = ['sun','mon','tue','wed','thu','fri','sat'][new Date().getDay()] || 'mon';
@@ -169,11 +287,9 @@
         let currentUser = null;
         let db = null;
         let auth = null;
-        let unsubscribeSync = null;
         let isCloudConnected = false;
         let authStatus = { loading: false, message: '', type: '' };
 
-        // Globala Funktioner
         window.switchView = (view) => { currentView = view; render(); };
         window.setWeek = (w) => { currentWeek = w; render(); };
         window.autoSetWeek = () => { currentWeek = getSuggestedWeek(); render(); };
@@ -186,116 +302,207 @@
             await syncToCloud();
         };
 
-        // Nollställningslogik
         window.openResetModal = (type) => {
             const modal = document.getElementById('reset-modal');
             const text = document.getElementById('reset-modal-text');
             const btn = document.getElementById('confirm-reset-btn');
-            
             modal.classList.remove('hidden');
-            
             if (type === 'weekly') {
                 text.innerText = 'Vill du nollställa alla bockar för den här veckan?';
             } else {
                 const s = cleaningData.seasonal.find(x => x.id === type);
                 text.innerText = `Vill du nollställa ${s.name.split(' ')[0]} & Kvartalsfix?`;
             }
-            
-            btn.onclick = () => {
-                executeReset(type);
-                closeResetModal();
-            };
+            btn.onclick = () => { executeReset(type); closeResetModal(); };
         };
 
-        window.closeResetModal = () => {
-            document.getElementById('reset-modal').classList.add('hidden');
-        };
+        window.closeResetModal = () => { document.getElementById('reset-modal').classList.add('hidden'); };
 
         const executeReset = async (type) => {
             const now = new Date();
-            const timestamp = now.toLocaleDateString('sv-SE', { 
-                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
-            });
-
+            const timestamp = now.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
             if (type === 'weekly') {
-                Object.keys(checkedItems).forEach(key => {
+                // Vi sätter dem till false istället för att radera så att de syncas korrekt med molnet
+                Object.keys(checkedItems).forEach(key => { 
                     if (key.includes('-t-') || key.includes('-l') || key.includes('-r-')) {
-                        delete checkedItems[key];
+                        checkedItems[key] = false;
                     }
                 });
                 checkedItems.lastResetWeekly = timestamp;
             } else {
-                // Rensa allt som börjar på säsongens ID (inklusive kvartal för den säsongen)
-                Object.keys(checkedItems).forEach(key => {
+                Object.keys(checkedItems).forEach(key => { 
                     if (key.startsWith(type + '-')) {
-                        delete checkedItems[key];
+                        checkedItems[key] = false;
                     }
                 });
                 checkedItems['lastReset-' + type] = timestamp;
             }
-            
             localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
             render();
             await syncToCloud();
         };
 
-        // Auth Logic
-        window.handleAuth = async (mode) => {
-            if (!auth) return;
-            const user = document.getElementById('auth-user').value.trim();
-            const pass = document.getElementById('auth-pass').value;
-            if(!user || !pass) {
-                authStatus = { loading: false, message: "Fyll i både namn och lösenord.", type: "error" };
+        window.handleAuth = async (type) => {
+            const emailInput = document.getElementById('auth-user').value;
+            const passInput = document.getElementById('auth-pass').value;
+            
+            if (!emailInput || !passInput) {
+                authStatus.message = "Fyll i både namn och lösenord";
+                authStatus.type = "error";
                 render();
                 return;
             }
-            const email = `${user.toLowerCase()}@stad.app`;
-            authStatus = { loading: true, message: mode === 'login' ? "Loggar in..." : "Skapar konto...", type: "info" };
+
+            const email = emailInput.includes('@') ? emailInput : `${emailInput}@stad.app`;
+            authStatus.loading = true;
+            authStatus.message = type === 'login' ? "Loggar in..." : "Skapar konto...";
+            authStatus.type = "info";
             render();
+
             try {
-                if(mode === 'login') await signInWithEmailAndPassword(auth, email, pass);
-                else await createUserWithEmailAndPassword(auth, email, pass);
-                authStatus = { loading: false, message: "Inloggning lyckades!", type: "success" };
-                render();
+                if (type === 'login') {
+                    await signInWithEmailAndPassword(auth, email, passInput);
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, passInput);
+                }
+                authStatus.message = "Inloggad!";
+                authStatus.type = "success";
             } catch (e) {
-                authStatus = { loading: false, message: "Fel: " + e.message, type: "error" };
+                authStatus.type = "error";
+                if (e.code === 'auth/user-not-found') authStatus.message = "Användaren finns inte";
+                else if (e.code === 'auth/wrong-password') authStatus.message = "Fel lösenord";
+                else if (e.code === 'auth/email-already-in-use') authStatus.message = "Namnet är upptaget";
+                else if (e.code === 'auth/weak-password') authStatus.message = "Lösenordet är för kort";
+                else authStatus.message = "Ett fel uppstod: " + e.message;
+            } finally {
+                authStatus.loading = false;
                 render();
             }
         };
 
         window.handleLogout = async () => {
-            if (auth) await signOut(auth);
-            checkedItems = {};
-            localStorage.removeItem('cleaning_local_v3');
-            location.reload();
+            try {
+                await signOut(auth);
+                currentUser = null;
+                isCloudConnected = false;
+                authStatus.message = "Utloggad";
+                authStatus.type = "info";
+                render();
+            } catch (e) {
+                console.error("Logout failed", e);
+            }
         };
+
+        // FIREFOX-SÄKER UTSKRIFT (3 ÖVERST, 2 UNDER)
+        window.onbeforeprint = () => {
+            const printArea = document.getElementById('print-area');
+            const style = document.createElement('style');
+            style.id = "dynamic-print-style";
+            if (currentView === 'weekly') {
+                style.innerHTML = "@page { size: landscape; margin: 0.5cm; }";
+            } else {
+                style.innerHTML = "@page { size: portrait; margin: 0.8cm; }";
+            }
+            document.head.appendChild(style);
+
+            let html = "";
+            if (currentView === 'weekly') {
+                html = `
+                    <div class="print-page">
+                        <div class="print-header">
+                            <h2>1. Veckorutin & Rotation</h2>
+                        </div>
+                        <div class="print-weekly-top">
+                            ${renderPrintCard(cleaningData.weekly[0])}
+                            ${renderPrintCard(cleaningData.weekly[1])}
+                            ${renderPrintCard(cleaningData.weekly[2])}
+                        </div>
+                        <div class="print-weekly-bottom">
+                            ${renderPrintCard(cleaningData.weekly[3])}
+                            ${renderPrintCard(cleaningData.weekly[4])}
+                        </div>
+                    </div>`;
+            } else {
+                const season = cleaningData.seasonal.find(x => x.id === currentSeasonId);
+                const sName = season.name.split(' ')[0];
+                html = `
+                    <div class="print-page">
+                        <div class="print-header">
+                            <h2>${season.name}</h2>
+                        </div>
+                        <div class="print-vertical-stack">
+                            <div class="print-card" style="border-left: 8px solid ${season.color} !important; background:#f8fafc !important;">
+                                <div class="section-title" style="border-bottom-color: ${season.color} !important; color: ${season.color} !important;">${sName}städ</div>
+                                <div style="font-size:12px; line-height:2.0; margin-bottom:15px;">
+                                    ${season.tasks.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}
+                                </div>
+                                <div style="border-top:1px solid #ddd; padding-top:10px;">
+                                    <p style="font-weight:bold; color:#94a3b8; font-size:9px; margin-bottom:6px; text-transform:uppercase;">Deep Clean</p>
+                                    <div style="font-size:12px; line-height:2.0;">
+                                        ${season.deep.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="print-card" style="border-left: 8px solid #94a3b8 !important; margin-top:20px !important;">
+                                <div class="section-title" style="border-bottom-color: #94a3b8 !important; color: #64748b !important;">Kvartalsfix</div>
+                                <div style="font-size:12px; line-height:2.2;">
+                                    ${cleaningData.quarterly.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+            printArea.innerHTML = html;
+        };
+
+        window.onafterprint = () => {
+            const style = document.getElementById('dynamic-print-style');
+            if (style) style.remove();
+            document.getElementById('print-area').innerHTML = "";
+        };
+
+        function renderPrintCard(day) {
+            const rot13 = day.rotation?.v13 || [];
+            const rot2 = day.rotation?.v2 || [];
+            const rot4 = day.rotation?.v4 || [];
+            return `
+                <div class="print-card ${day.printClass}">
+                    <div class="section-title">${day.name}</div>
+                    <div style="margin-bottom:10px;">
+                        <p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Varje vecka</p>
+                        ${day.tasks.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}
+                    </div>
+                    <div>
+                        <p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Rotation</p>
+                        ${rot13.map(t => `<div class="print-item"><span class="print-tag tag-v13">V 1/3</span>${t}</div>`).join('')}
+                        ${rot2.map(t => `<div class="print-item"><span class="print-tag tag-v2">V 2</span>${t}</div>`).join('')}
+                        ${rot4.map(t => `<div class="print-item"><span class="print-tag tag-v4">V 4</span>${t}</div>`).join('')}
+                    </div>
+                    <div style="border-top:1px solid #eee; margin-top:10px; padding-top:6px; color:#3b82f6; font-style:italic; font-weight:700; font-size:10px;">
+                        <span class="print-box" style="border-color:#3b82f6 !important;"></span>Tvätt: ${day.laundry}
+                    </div>
+                </div>`;
+        }
 
         const syncToCloud = async () => {
             localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
             if (!currentUser || currentUser.isAnonymous || !db || !isCloudConnected) return;
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'cleaningData', 'state');
-                await setDoc(docRef, { items: checkedItems }, { merge: true });
-            } catch (e) { console.warn("Sync pausad", e); }
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'cleaningData', 'state');
+            try { await setDoc(docRef, { items: checkedItems }, { merge: true }); } catch (e) { console.warn("Save failed"); }
         };
 
         const render = () => {
             const container = document.getElementById('app-content');
             if (!container) return;
             container.innerHTML = '';
-            
-            // Navigering status
             document.getElementById('nav-weekly').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'weekly' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('nav-seasonal').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'seasonal' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('nav-profile').className = `flex flex-col items-center gap-1 transition-colors ${currentView === 'profile' ? 'text-blue-600' : 'text-slate-400'}`;
             document.getElementById('week-selector-ui').style.display = currentView === 'weekly' ? 'flex' : 'none';
-
-            // Veckoknappar status
             document.querySelectorAll('#week-selector-ui button[id^="btn-v"]').forEach(btn => {
                 const isActive = btn.id === `btn-v${currentWeek}`;
                 btn.className = `px-3 py-1 text-xs rounded-md transition-all ${isActive ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500'}`;
             });
-
             if (currentView === 'weekly') renderWeekly(container);
             else if (currentView === 'seasonal') renderSeasonal(container);
             else renderProfile(container);
@@ -306,23 +513,19 @@
             tabs.className = "flex overflow-x-auto gap-2 mb-4 no-scrollbar pb-1";
             cleaningData.weekly.forEach(day => {
                 const btn = document.createElement('button');
-                btn.className = `px-5 py-2 rounded-full text-xs font-bold transition-all ${currentDayId === day.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
+                btn.className = `px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${currentDayId === day.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
                 btn.innerText = day.short;
                 btn.onclick = () => window.setDay(day.id);
                 tabs.appendChild(btn);
             });
             container.appendChild(tabs);
-            
             const day = cleaningData.weekly.find(d => d.id === currentDayId);
             const card = document.createElement('div');
             card.className = "card bg-white rounded-xl card-shadow border-t-4 mb-4";
             card.style.borderTopColor = day.color;
-            
             const displayWeek = (currentWeek === 1 || currentWeek === 3) ? '1/3' : currentWeek;
             let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold uppercase text-slate-800">${day.name}</h3><span class="text-[10px] font-bold text-slate-400">VECKA ${displayWeek}</span></div><div class="space-y-2.5">`;
-            
             day.tasks.forEach((t, i) => html += renderItemHtml(`${day.id}-t-${i}`, t));
-            
             const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
             const rotTasks = day.rotation[rotKey] || [];
             if (rotTasks.length > 0) {
@@ -334,14 +537,19 @@
             html += `<div class="py-2 border-t mt-2 flex items-center gap-3" onclick="toggleItem('${day.id}-l')"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${checkedItems[day.id+'-l'] ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${checkedItems[day.id+'-l'] ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic text-blue-600 ${checkedItems[day.id+'-l'] ? 'checked-text' : ''}">Tvätt: ${day.laundry}</span></div></div></div>`;
             card.innerHTML = html;
             container.appendChild(card);
-
-            const resetDiv = document.createElement('div');
-            resetDiv.className = "pt-4 text-center";
-            resetDiv.innerHTML = `
-                <button onclick="openResetModal('weekly')" class="w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] tracking-widest active:bg-slate-300 transition-colors">Nollställ Veckan</button>
-                ${checkedItems.lastResetWeekly ? `<p class="text-[9px] text-slate-400 mt-2 uppercase italic">Senast nollställd: ${checkedItems.lastResetWeekly}</p>` : ''}
-            `;
-            container.appendChild(resetDiv);
+            
+            if (checkedItems.lastResetWeekly) {
+                const stamp = document.createElement('p');
+                stamp.className = "text-[9px] text-center text-slate-400 font-bold uppercase mb-1 tracking-tighter";
+                stamp.innerText = `Senaste nollställning: ${checkedItems.lastResetWeekly}`;
+                container.appendChild(stamp);
+            }
+            
+            const resetBtn = document.createElement('button');
+            resetBtn.className = "w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] mt-1";
+            resetBtn.innerText = "Nollställ Veckan";
+            resetBtn.onclick = () => window.openResetModal('weekly');
+            container.appendChild(resetBtn);
         }
 
         function renderSeasonal(container) {
@@ -349,42 +557,43 @@
             tabs.className = "flex overflow-x-auto gap-2 mb-4 no-scrollbar pb-1";
             cleaningData.seasonal.forEach(s => {
                 const btn = document.createElement('button');
-                btn.className = `px-5 py-2 rounded-full text-xs font-bold transition-all ${currentSeasonId === s.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
+                btn.className = `px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${currentSeasonId === s.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
                 btn.innerText = s.name.split(' ')[0];
                 btn.onclick = () => { currentSeasonId = s.id; localStorage.setItem('current_season', s.id); render(); };
                 tabs.appendChild(btn);
             });
             container.appendChild(tabs);
-            
+
             const season = cleaningData.seasonal.find(x => x.id === currentSeasonId);
             const content = document.createElement('div');
             content.className = "space-y-4";
             
-            // Säsongsstäd först
-            let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">`;
-            season.tasks.forEach((t, i) => sHtml += renderItemHtml(`${season.id}-st-${i}`, t));
-            sHtml += `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Deep Clean</p>`;
-            season.deep.forEach((t, i) => sHtml += renderItemHtml(`${season.id}-sd-${i}`, t));
-            sHtml += `</div></div></div>`;
-
-            // Kvartalsfix efter
-            let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3 tracking-widest">Kvartalsfix (${season.name.split(' ')[0]})</h3><div class="space-y-2.5">`;
-            cleaningData.quarterly.forEach((t, i) => qHtml += renderItemHtml(`${season.id}-q-${i}`, t));
-            qHtml += `</div></div>`;
+            // ÄNDRAD ORDNING: Säsongsstäd först
+            let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">` + 
+                season.tasks.map((t, i) => renderItemHtml(`${season.id}-st-${i}`, t)).join('') + 
+                `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Deep Clean</p>` +
+                season.deep.map((t, i) => renderItemHtml(`${season.id}-sd-${i}`, t)).join('') + `</div></div></div>`;
+                
+            // Kvartalsfix andra hand
+            let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3">Kvartalsfix</h3><div class="space-y-2.5">` + 
+                cleaningData.quarterly.map((t, i) => renderItemHtml(`${season.id}-q-${i}`, t)).join('') + `</div></div>`;
             
             content.innerHTML = sHtml + qHtml;
             container.appendChild(content);
 
-            const resetDiv = document.createElement('div');
-            resetDiv.className = "pt-4 text-center";
-            const seasonResetName = season.name.split(' ')[0];
-            const lastReset = checkedItems['lastReset-' + season.id];
-            
-            resetDiv.innerHTML = `
-                <button onclick="openResetModal('${season.id}')" class="w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] tracking-widest active:bg-slate-300 transition-colors">Nollställ ${seasonResetName} & Kvartal</button>
-                ${lastReset ? `<p class="text-[9px] text-slate-400 mt-2 uppercase italic">Senast nollställd: ${lastReset}</p>` : ''}
-            `;
-            container.appendChild(resetDiv);
+            const sKey = 'lastReset-' + season.id;
+            if (checkedItems[sKey]) {
+                const stamp = document.createElement('p');
+                stamp.className = "text-[9px] text-center text-slate-400 font-bold uppercase mt-4 mb-1 tracking-tighter";
+                stamp.innerText = `Senaste nollställning: ${checkedItems[sKey]}`;
+                container.appendChild(stamp);
+            }
+
+            const resetBtn = document.createElement('button');
+            resetBtn.className = "w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] mt-1";
+            resetBtn.innerText = `Nollställ ${season.name.split(' ')[0]}`;
+            resetBtn.onclick = () => window.openResetModal(season.id);
+            container.appendChild(resetBtn);
         }
 
         function renderProfile(container) {
@@ -414,10 +623,8 @@
                     authStatus.loading = false;
                     currentUser = user;
                     if (user && !user.isAnonymous) {
-                        authStatus.message = "Inloggad!"; authStatus.type = "success";
                         const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'cleaningData', 'state');
-                        if(unsubscribeSync) unsubscribeSync();
-                        unsubscribeSync = onSnapshot(docRef, (docSnap) => {
+                        onSnapshot(docRef, (docSnap) => {
                             isCloudConnected = true;
                             statusEl.innerText = user.email.split('@')[0];
                             statusEl.className = "text-[10px] text-green-500 font-bold uppercase truncate max-w-[80px]";
@@ -426,7 +633,7 @@
                                 localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
                             }
                             render();
-                        }, () => { isCloudConnected = false; statusEl.innerText = "Sync-paus"; render(); });
+                        }, () => { isCloudConnected = false; statusEl.innerText = "Sync-fel"; render(); });
                     } else {
                         isCloudConnected = false; statusEl.innerText = "Lokalt"; statusEl.className = "text-[10px] text-slate-400 font-bold uppercase";
                         if (!user) signInAnonymously(auth).catch(() => {});
