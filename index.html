@@ -80,13 +80,18 @@
                 <span id="today-suggestion" class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter"></span>
             </div>
         </div>
-        <div id="week-selector-ui" class="flex gap-1 bg-slate-100 p-1 rounded-lg">
-            <button id="btn-auto" onclick="autoSetWeek()" class="px-2 py-1 text-[10px] font-bold text-blue-600 hover:bg-white rounded transition-all uppercase">Auto</button>
-            <div class="w-px h-4 bg-slate-200 self-center mx-1"></div>
-            <button onclick="setWeek(1)" id="btn-v1" class="px-3 py-1 text-xs rounded-md transition-all">V1</button>
-            <button onclick="setWeek(2)" id="btn-v2" class="px-3 py-1 text-xs rounded-md transition-all">V2</button>
-            <button onclick="setWeek(3)" id="btn-v3" class="px-3 py-1 text-xs rounded-md transition-all">V3</button>
-            <button onclick="setWeek(4)" id="btn-v4" class="px-3 py-1 text-xs rounded-md transition-all">V4</button>
+        <div class="flex items-center gap-3">
+            <button onclick="window.print()" class="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+            </button>
+            <div id="week-selector-ui" class="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                <button id="btn-auto" onclick="autoSetWeek()" class="px-2 py-1 text-[10px] font-bold text-blue-600 hover:bg-white rounded transition-all uppercase">Auto</button>
+                <div class="w-px h-4 bg-slate-200 self-center mx-1"></div>
+                <button onclick="setWeek(1)" id="btn-v1" class="px-3 py-1 text-xs rounded-md transition-all">V1</button>
+                <button onclick="setWeek(2)" id="btn-v2" class="px-3 py-1 text-xs rounded-md transition-all">V2</button>
+                <button onclick="setWeek(3)" id="btn-v3" class="px-3 py-1 text-xs rounded-md transition-all">V3</button>
+                <button onclick="setWeek(4)" id="btn-v4" class="px-3 py-1 text-xs rounded-md transition-all">V4</button>
+            </div>
         </div>
     </header>
 
@@ -180,7 +185,7 @@
                 },
                 { 
                     id: 'wed', name: 'Onsdag', short: 'Ons', color: '#10b981', printClass: 'card-top-emerald', 
-                    tasks: ['Damma ytor', 'Piffa kuddar/filtar', 'Tömma komposten'], 
+                    tasks: ['Damma ytor', 'Tömma komposten'], 
                     laundry: 'Träningskläder', 
                     rotation: {
                         v13: ['Lister & dörrar'],
@@ -245,31 +250,16 @@
         let authStatus = { loading: false, message: '', type: '' };
 
         window.switchView = (view) => { currentView = view; render(); };
-        
-        window.setWeek = (w) => { 
-            currentWeek = w; 
-            localStorage.setItem('cleaning_selected_week', w);
-            render(); 
-        };
-        
-        window.autoSetWeek = () => { 
-            currentWeek = getSuggestedWeek(); 
-            localStorage.removeItem('cleaning_selected_week');
-            render(); 
-        };
-        
+        window.setWeek = (w) => { currentWeek = w; localStorage.setItem('cleaning_selected_week', w); render(); };
+        window.autoSetWeek = () => { currentWeek = getSuggestedWeek(); localStorage.removeItem('cleaning_selected_week'); render(); };
         window.setDay = (dayId) => { currentDayId = dayId; render(); };
         
         window.toggleItem = async (id) => {
             checkedItems[id] = !checkedItems[id];
-            const isSeasonalOrQuarterly = id.includes('-q-') || id.includes('-st-') || id.includes('-sd-');
-            if (isSeasonalOrQuarterly) {
-                if (checkedItems[id]) {
-                    const now = new Date();
-                    checkedItems[id + '_date'] = now.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
-                } else {
-                    delete checkedItems[id + '_date'];
-                }
+            if (checkedItems[id]) {
+                const now = new Date();
+                checkedItems[id + '_date'] = now.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
+                checkedItems[id + '_ts'] = Date.now();
             }
             localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
             render();
@@ -281,8 +271,12 @@
             const text = document.getElementById('reset-modal-text');
             const btn = document.getElementById('confirm-reset-btn');
             modal.classList.remove('hidden');
+            
             if (type === 'weekly') {
-                text.innerText = 'Vill du nollställa alla bockar för den här veckan?';
+                text.innerText = 'Vill du nollställa ALLA bockar för hela veckan?';
+            } else if (type === 'day') {
+                const day = cleaningData.weekly.find(d => d.id === currentDayId);
+                text.innerText = `Nollställ ${day.name}? Endast i-checkade uppgifter rensas.`;
             } else {
                 const s = cleaningData.seasonal.find(x => x.id === type);
                 text.innerText = `Vill du nollställa ${s.name.split(' ')[0]} & Kvartalsfix?`;
@@ -295,25 +289,55 @@
         const executeReset = async (type) => {
             const now = new Date();
             const timestamp = now.toLocaleDateString('sv-SE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-            if (type === 'weekly') {
-                Object.keys(checkedItems).forEach(key => { 
-                    if (key.includes('-t-') || key.includes('-l') || key.includes('-r-')) {
+            
+            if (type === 'day') {
+                const day = cleaningData.weekly.find(d => d.id === currentDayId);
+                const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
+                Object.keys(checkedItems).forEach(key => {
+                    const isTask = key.startsWith(`${day.id}-t-`);
+                    const isLaundry = key.startsWith(`${day.id}-l-${rotKey}`) || key === `${day.id}-l-always`;
+                    const isRotation = key.startsWith(`${day.id}-r-${rotKey}`);
+                    if ((isTask || isLaundry || isRotation) && !key.endsWith('_ts') && !key.endsWith('_date')) {
                         checkedItems[key] = false;
+                    }
+                });
+                checkedItems[`lastReset-${day.id}`] = timestamp;
+            } else if (type === 'weekly') {
+                Object.keys(checkedItems).forEach(key => { 
+                    if (key.includes('-t-') || key.includes('-l-') || key.includes('-r-') || key === 'mon-l-always') {
+                        if (!key.endsWith('_ts') && !key.endsWith('_date')) checkedItems[key] = false;
                     }
                 });
                 checkedItems.lastResetWeekly = timestamp;
             } else {
+                // Seasonal reset - rensar både säsongsspecifika uppgifter och den delade kvartalslistan
                 Object.keys(checkedItems).forEach(key => { 
-                    if (key.startsWith(type + '-')) {
+                    const isSeasonTask = key.startsWith(type + '-');
+                    const isQuarterlyTask = key.startsWith('shared-q-');
+                    
+                    if ((isSeasonTask || isQuarterlyTask) && !key.endsWith('_ts') && !key.endsWith('_date')) {
                         checkedItems[key] = false;
-                        if (checkedItems[key + '_date']) delete checkedItems[key + '_date'];
                     }
                 });
                 checkedItems['lastReset-' + type] = timestamp;
             }
+            
             localStorage.setItem('cleaning_local_v3', JSON.stringify(checkedItems));
             render();
             await syncToCloud();
+        };
+
+        const sortTasks = (tasks, idPrefix) => {
+            return tasks.map((text, index) => ({
+                id: `${idPrefix}-${index}`,
+                text: text,
+                ts: checkedItems[`${idPrefix}-${index}_ts`] || 0,
+                checked: checkedItems[`${idPrefix}-${index}`] || false
+            })).sort((a, b) => {
+                if (a.checked !== b.checked) return a.checked ? 1 : -1;
+                if (!a.checked) return a.ts - b.ts;
+                return b.ts - a.ts;
+            });
         };
 
         window.handleAuth = async (type) => {
@@ -337,22 +361,14 @@
                 authStatus.type = "success";
             } catch (e) {
                 authStatus.type = "error";
-                if (e.code === 'auth/user-not-found') authStatus.message = "Användaren finns inte";
-                else if (e.code === 'auth/wrong-password') authStatus.message = "Fel lösenord";
-                else authStatus.message = "Ett fel uppstod";
+                authStatus.message = "Ett fel uppstod vid inloggning";
             } finally {
                 authStatus.loading = false;
                 render();
             }
         };
 
-        window.handleLogout = async () => {
-            await signOut(auth);
-            currentUser = null;
-            isCloudConnected = false;
-            authStatus.message = "Utloggad";
-            render();
-        };
+        window.handleLogout = async () => { await signOut(auth); currentUser = null; isCloudConnected = false; authStatus.message = "Utloggad"; render(); };
 
         window.onbeforeprint = () => {
             const printArea = document.getElementById('print-area');
@@ -377,19 +393,10 @@
         };
 
         function renderPrintCard(day) {
-            const rot13 = day.rotation?.v13 || [];
-            const rot2 = day.rotation?.v2 || [];
-            const rot4 = day.rotation?.v4 || [];
-            
             const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
-            let lText = "";
-            if (typeof day.laundry === 'object') {
-                lText = day.laundry[rotKey];
-            } else {
-                lText = day.laundry;
-            }
-            
-            return `<div class="print-card ${day.printClass}"><div class="section-title">${day.name}</div><div style="margin-bottom:10px;"><p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Varje vecka</p>${day.tasks.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div><div><p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Rotation</p>${rot13.map(t => `<div class="print-item"><span class="print-tag tag-v13">V 1/3</span>${t}</div>`).join('')}${rot2.map(t => `<div class="print-item"><span class="print-tag tag-v2">V 2</span>${t}</div>`).join('')}${rot4.map(t => `<div class="print-item"><span class="print-tag tag-v4">V 4</span>${t}</div>`).join('')}</div><div style="border-top:1px solid #eee; margin-top:10px; padding-top:6px; color:#3b82f6; font-style:italic; font-weight:700; font-size:10px;"><span class="print-box" style="border-color:#3b82f6 !important;"></span>Tvätt: ${lText}</div></div>`;
+            const rotTasks = day.rotation[rotKey] || [];
+            const laundryText = typeof day.laundry === 'object' ? day.laundry[rotKey] : day.laundry;
+            return `<div class="print-card ${day.printClass}"><div class="section-title">${day.name}</div><div style="margin-bottom:10px;"><p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Varje vecka</p>${day.tasks.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div><div><p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Rotation</p>${rotTasks.map(t => `<div class="print-item"><span class="print-tag tag-v13">Rot</span>${t}</div>`).join('')}</div><div style="border-top:1px solid #eee; margin-top:10px; padding-top:6px; color:#3b82f6; font-style:italic; font-weight:700; font-size:10px;"><span class="print-box" style="border-color:#3b82f6 !important;"></span>Tvätt: ${laundryText}</div></div>`;
         }
 
         const syncToCloud = async () => {
@@ -412,9 +419,7 @@
             
             const isAuto = !localStorage.getItem('cleaning_selected_week');
             const autoBtn = document.getElementById('btn-auto');
-            if (autoBtn) {
-                autoBtn.className = `px-2 py-1 text-[10px] font-bold rounded transition-all uppercase ${isAuto ? 'text-blue-600' : 'text-slate-400 hover:text-blue-400'}`;
-            }
+            if (autoBtn) autoBtn.className = `px-2 py-1 text-[10px] font-bold rounded transition-all uppercase ${isAuto ? 'text-blue-600' : 'text-slate-400 hover:text-blue-400'}`;
             
             const suggestionEl = document.getElementById('today-suggestion');
             if (suggestionEl) {
@@ -449,48 +454,36 @@
             card.className = "card bg-white rounded-xl card-shadow border-t-4 mb-4";
             card.style.borderTopColor = day.color;
             const displayWeek = (currentWeek === 1 || currentWeek === 3) ? '1/3' : currentWeek;
-            
-            // Ny logik för tvätt-rotation och ID
             const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
-            let laundryText = "";
-            let laundryId = "";
-
-            if (typeof day.laundry === 'object') {
-                laundryText = day.laundry[rotKey];
-                laundryId = `${day.id}-l-${rotKey}`; // Unikt ID per rotation (t.ex. mon-l-v13)
-            } else {
-                laundryText = day.laundry;
-                laundryId = `${day.id}-l-always`; // Samma ID varje vecka för fasta tvättar
-            }
+            let laundryText = typeof day.laundry === 'object' ? day.laundry[rotKey] : day.laundry;
+            let laundryId = typeof day.laundry === 'object' ? `${day.id}-l-${rotKey}` : `${day.id}-l-always`;
+            const sortedBaseTasks = sortTasks(day.tasks, `${day.id}-t`);
+            const sortedRotTasks = sortTasks(day.rotation[rotKey] || [], `${day.id}-r-${rotKey}`);
 
             let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold uppercase text-slate-800">${day.name}</h3><span class="text-[10px] font-bold text-slate-400">VECKA ${displayWeek}</span></div><div class="space-y-2.5">`;
-            day.tasks.forEach((t, i) => html += renderItemHtml(`${day.id}-t-${i}`, t));
-            
-            const rotTasks = day.rotation[rotKey] || [];
-            if (rotTasks.length > 0) {
+            sortedBaseTasks.forEach(task => html += renderItemHtml(task.id, task.text));
+            if (sortedRotTasks.length > 0) {
                 const rotLabel = (rotKey === 'v13') ? 'V 1/3' : rotKey.toUpperCase();
                 html += `<div class="mt-2 pt-2 border-t"><p class="text-[9px] font-black text-slate-300 uppercase mb-2">Rotation (${rotLabel})</p>`;
-                rotTasks.forEach((t, i) => html += renderItemHtml(`${day.id}-r-${rotKey}-${i}`, t));
+                sortedRotTasks.forEach(task => html += renderItemHtml(task.id, task.text));
                 html += `</div>`;
             }
-            
-            // Tvätt som en interaktiv punkt med eget ID
             const isLChecked = checkedItems[laundryId];
-            html += `<div class="py-2 border-t mt-2 flex items-center gap-3" onclick="toggleItem('${laundryId}')"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isLChecked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${isLChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic font-semibold text-blue-600 ${isLChecked ? 'checked-text' : ''}">Tvätt: ${laundryText}</span></div></div></div>`;
-            
+            const lDate = checkedItems[laundryId + '_date'];
+            html += `<div class="py-2 border-t mt-2 flex items-center justify-between gap-3" onclick="toggleItem('${laundryId}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isLChecked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${isLChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic font-semibold text-blue-600 ${isLChecked ? 'checked-text' : ''}">Tvätt: ${laundryText}</span></div>${lDate && isLChecked ? `<span class="text-[9px] font-bold text-slate-300 uppercase">${lDate}</span>` : ''}</div></div></div>`;
             card.innerHTML = html;
             container.appendChild(card);
             
-            if (checkedItems.lastResetWeekly) {
+            if (checkedItems[`lastReset-${day.id}`]) {
                 const stamp = document.createElement('p');
                 stamp.className = "text-[9px] text-center text-slate-400 font-bold uppercase mb-1 tracking-tighter";
-                stamp.innerText = `Senaste nollställning: ${checkedItems.lastResetWeekly}`;
+                stamp.innerText = `Senaste nollställning: ${checkedItems[`lastReset-${day.id}`]}`;
                 container.appendChild(stamp);
             }
             const resetBtn = document.createElement('button');
             resetBtn.className = "w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] mt-1";
-            resetBtn.innerText = "Nollställ Veckan";
-            resetBtn.onclick = () => window.openResetModal('weekly');
+            resetBtn.innerText = `Nollställ ${day.name}`;
+            resetBtn.onclick = () => window.openResetModal('day');
             container.appendChild(resetBtn);
         }
 
@@ -501,23 +494,33 @@
                 const btn = document.createElement('button');
                 btn.className = `px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${currentSeasonId === s.id ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border'}`;
                 btn.innerText = s.name.split(' ')[0];
-                btn.onclick = () => { currentSeasonId = s.id; localStorage.setItem('current_season', s.id); render(); };
+                btn.onclick = (e) => { 
+                    e.stopPropagation();
+                    currentSeasonId = s.id; 
+                    localStorage.setItem('current_season', s.id); 
+                    render(); 
+                };
                 tabs.appendChild(btn);
             });
             container.appendChild(tabs);
+            
             const season = cleaningData.seasonal.find(x => x.id === currentSeasonId);
-            const content = document.createElement('div');
-            content.className = "space-y-4";
-            
+            const sortedSeasonTasks = sortTasks(season.tasks, `${season.id}-st`);
+            const sortedDeepTasks = sortTasks(season.deep, `${season.id}-sd`);
+            const sortedQuarterly = sortTasks(cleaningData.quarterly, `shared-q`);
+
             let sHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4" style="border-left-color:${season.color}"><h3 class="font-bold text-[10px] uppercase mb-3" style="color:${season.color}">${season.name}</h3><div class="space-y-2.5">` + 
-                season.tasks.map((t, i) => renderItemHtml(`${season.id}-st-${i}`, t)).join('') + 
-                `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Storstäd ${season.deepTitle}</p>` +
-                season.deep.map((t, i) => renderItemHtml(`${season.id}-sd-${i}`, t)).join('') + `</div></div></div>`;
-            let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3">Kvartalsfix</h3><div class="space-y-2.5">` + 
-                cleaningData.quarterly.map((t, i) => renderItemHtml(`${season.id}-q-${i}`, t)).join('') + `</div></div>`;
+                sortedSeasonTasks.map(t => renderItemHtml(t.id, t.text)).join('') + 
+                `<div class="border-t my-4 pt-4"><p class="text-[9px] font-bold text-slate-300 uppercase mb-2">Grundlig städning ${season.deepTitle}</p>` +
+                sortedDeepTasks.map(t => renderItemHtml(t.id, t.text)).join('') + `</div></div></div>`;
             
-            content.innerHTML = sHtml + qHtml;
-            container.appendChild(content);
+            let qHtml = `<div class="card bg-white rounded-xl card-shadow p-4 border-l-4 border-l-slate-400 mt-4"><h3 class="font-bold text-slate-400 text-[10px] uppercase mb-3">Kvartalsfix</h3><div class="space-y-2.5">` + 
+                sortedQuarterly.map(t => renderItemHtml(t.id, t.text)).join('') + `</div></div>`;
+            
+            const section = document.createElement('div');
+            section.innerHTML = sHtml + qHtml;
+            container.appendChild(section);
+            
             const sKey = 'lastReset-' + season.id;
             if (checkedItems[sKey]) {
                 const stamp = document.createElement('p');
@@ -526,7 +529,7 @@
                 container.appendChild(stamp);
             }
             const resetBtn = document.createElement('button');
-            resetBtn.className = "w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] mt-1";
+            resetBtn.className = "w-full py-4 bg-slate-200 text-slate-600 rounded-xl font-bold uppercase text-[10px] mt-4";
             resetBtn.innerText = `Nollställ ${season.name.split(' ')[0]}`;
             resetBtn.onclick = () => window.openResetModal(season.id);
             container.appendChild(resetBtn);
@@ -535,7 +538,7 @@
         function renderProfile(container) {
             if (currentUser && !currentUser.isAnonymous && isCloudConnected) {
                 const name = currentUser.email.split('@')[0];
-                container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6 text-center w-full animate-fade-in"><div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div><h2 class="font-bold text-lg capitalize mb-1">${name}</h2><p class="text-xs text-green-600 font-bold mb-6 italic tracking-widest uppercase">Molnsync Aktiv</p><button onclick="handleLogout()" class="w-full py-3 bg-rose-50 text-rose-600 rounded-xl font-bold text-sm hover:bg-rose-100 transition-colors">Logga ut</button></div>`;
+                container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6 text-center w-full animate-fade-in"><div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div><h2 class="font-bold text-lg capitalize mb-1">${name}</h2><p class="text-xs text-green-600 font-bold mb-6 italic tracking-widest uppercase">Molnsync Aktiv</p><div class="space-y-3"><button onclick="openResetModal('weekly')" class="w-full py-4 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm uppercase">Nollställ Hela Veckan</button><button onclick="handleLogout()" class="w-full py-3 text-rose-500 font-bold text-sm uppercase">Logga ut</button></div></div>`;
             } else {
                 container.innerHTML = `<div class="card bg-white rounded-xl card-shadow p-6 w-full animate-fade-in"><h2 class="font-bold text-xl mb-6">Ditt Konto</h2><div class="space-y-4"><input id="auth-user" type="text" placeholder="Användarnamn" class="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-blue-500 transition-all"><input id="auth-pass" type="password" placeholder="Lösenord" class="w-full p-3 bg-slate-50 border rounded-xl text-sm outline-blue-500 transition-all">${authStatus.message ? `<div class="p-2 rounded text-[11px] font-bold text-center ${authStatus.type === 'error' ? 'bg-rose-50 text-rose-600' : (authStatus.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-600')}">${authStatus.message}</div>` : ''}<div class="grid grid-cols-2 gap-3 pt-2"><button onclick="handleAuth('login')" class="py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">${authStatus.loading ? '<div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>' : ''} Logga in</button><button onclick="handleAuth('register')" class="py-3 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">Skapa konto</button></div></div></div>`;
             }
@@ -544,7 +547,9 @@
         function renderItemHtml(id, text) {
             const isChecked = checkedItems[id];
             const dateStr = checkedItems[id + '_date'];
-            return `<div class="flex items-center justify-between gap-3 py-0.5" onclick="toggleItem('${id}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isChecked ? 'bg-slate-400 border-slate-400 scale-95' : 'border-slate-300'}">${isChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm text-slate-600 font-medium leading-tight ${isChecked ? 'checked-text' : ''}">${text}</span></div>${dateStr && isChecked ? `<span class="text-[9px] font-bold text-slate-300 uppercase whitespace-nowrap">${dateStr}</span>` : ''}</div>`;
+            const ts = checkedItems[id + '_ts'];
+            const isVeryOld = !isChecked && ts && (Date.now() - ts > 1000 * 60 * 60 * 24 * 7);
+            return `<div class="flex items-center justify-between gap-3 py-0.5" onclick="toggleItem('${id}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isChecked ? 'bg-slate-400 border-slate-400 scale-95' : (isVeryOld ? 'border-amber-400 bg-amber-50' : 'border-slate-300')}">${isChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : (isVeryOld ? '<span class="text-[10px] font-black text-amber-500">!</span>' : '')}</div><span class="text-sm text-slate-600 font-medium leading-tight ${isChecked ? 'checked-text' : ''}">${text}</span></div>${dateStr && isChecked ? `<span class="text-[9px] font-bold text-slate-300 uppercase whitespace-nowrap">${dateStr}</span>` : ''}</div>`;
         }
 
         const initFirebase = async () => {
