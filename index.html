@@ -158,30 +158,55 @@
 
         const cleaningData = {
             weekly: [
-                { id: 'mon', name: 'Måndag', short: 'Mån', color: '#3b82f6', printClass: 'card-top-blue', tasks: ['Rengör spis & bänk', 'Sopsortering', 'Diskho'], laundry: 'Handdukar', rotation: {
-                    v13: ['Rengör mikron', 'Smutsiga handtag'],
-                    v2: ['Tvätta grytlappar', 'Diskmaskin + filter', 'Olja träverktyg'],
-                    v4: ['Under diskbänken', 'Vattenlås (medel)', 'Rengör kranen']
-                }},
-                { id: 'tue', name: 'Tisdag', short: 'Tis', color: '#9333ea', printClass: 'card-top-purple', tasks: ['Toalett', 'Putsa speglar', 'Handfat', 'Robotdammsugare'], laundry: '40°/30°', rotation: {
-                    v13: ['Skrubba duschen'],
-                    v2: ['Badrumsmatta', 'Toalett noggrant'],
-                    v4: ['Koka tandborste']
-                }},
-                { id: 'wed', name: 'Onsdag', short: 'Ons', color: '#10b981', printClass: 'card-top-emerald', tasks: ['Damma ytor', 'Piffa kuddar/filtar'], laundry: 'Träningskläder', rotation: {
-                    v13: ['Lister & dörrar'],
-                    v2: ['Lampor & ventiler'],
-                    v4: ['Bokhyllor', 'Damma tomma rum']
-                }},
-                { id: 'thu', name: 'Torsdag', short: 'Tor', color: '#f59e0b', printClass: 'card-top-amber', tasks: ['Töm roboten', 'Dammsuga'], laundry: 'Vit / underkläder', rotation: {
-                    v13: ['Dammsuga soffan'],
-                    v2: ['Sänggavel & under sängen'],
-                    v4: ['Dammsuga tomma rum noggrant', 'Moppa golven ordentligt']
-                }},
-                { id: 'fri', name: 'Fredag', short: 'Fre', color: '#f43f5e', printClass: 'card-top-rose', tasks: ['Byt sängkläder', 'Robotdammsugare', 'Helgpiff'], laundry: 'Sängkläder', rotation: {
-                    v2: ['Slänga trasor & svampar'],
-                    v4: ['Tvättmaskinsrengöring']
-                }}
+                { 
+                    id: 'mon', name: 'Måndag', short: 'Mån', color: '#3b82f6', printClass: 'card-top-blue', 
+                    tasks: ['Rengör spis & bänk', 'Sopsortering', 'Diskho', 'Tömma komposten'], 
+                    laundry: { v13: 'Underkläder', v2: 'Kökshanddukar', v4: 'Vittvätt' }, 
+                    rotation: {
+                        v13: ['Rengör mikron', 'Smutsiga handtag'],
+                        v2: ['Tvätta grytlappar', 'Diskmaskin + filter', 'Olja träverktyg'],
+                        v4: ['Under diskbänken', 'Vattenlås (medel)', 'Rengör kranen']
+                    }
+                },
+                { 
+                    id: 'tue', name: 'Tisdag', short: 'Tis', color: '#9333ea', printClass: 'card-top-purple', 
+                    tasks: ['Toalett', 'Putsa speglar', 'Handfat', 'Robotdammsugare'], 
+                    laundry: 'Handdukar', 
+                    rotation: {
+                        v13: ['Skrubba duschen'],
+                        v2: ['Badrumsmatta', 'Toalett noggrant'],
+                        v4: ['Koka tandborste']
+                    }
+                },
+                { 
+                    id: 'wed', name: 'Onsdag', short: 'Ons', color: '#10b981', printClass: 'card-top-emerald', 
+                    tasks: ['Damma ytor', 'Piffa kuddar/filtar', 'Tömma komposten'], 
+                    laundry: 'Träningskläder', 
+                    rotation: {
+                        v13: ['Lister & dörrar'],
+                        v2: ['Lampor & ventiler', 'Putsa skorna'],
+                        v4: ['Bokhyllor', 'Damma tomma rum']
+                    }
+                },
+                { 
+                    id: 'thu', name: 'Torsdag', short: 'Tor', color: '#f59e0b', printClass: 'card-top-amber', 
+                    tasks: ['Töm roboten', 'Dammsuga'], 
+                    laundry: '40°/30°', 
+                    rotation: {
+                        v13: ['Dammsuga soffan'],
+                        v2: ['Sänggavel & under sängen'],
+                        v4: ['Dammsuga tomma rum noggrant', 'Moppa golven ordentligt']
+                    }
+                },
+                { 
+                    id: 'fri', name: 'Fredag', short: 'Fre', color: '#f43f5e', printClass: 'card-top-rose', 
+                    tasks: ['Byt sängkläder', 'Robotdammsugare', 'Handfat', 'Helgpiff'], 
+                    laundry: 'Sängkläder', 
+                    rotation: {
+                        v2: ['Slänga trasor & svampar'],
+                        v4: ['Tvättmaskinsrengöring']
+                    }
+                }
             ],
             seasonal: [
                 { id: 'spring', name: 'Vår (Mar/Apr)', color: '#10b981', deepTitle: 'vardagsrum & hall', tasks: ['Putsa alla fönster', 'Smörj dörrar och fönster', 'Balkongen: Golv & möbler', 'Plantera om växter', 'Tvätta täcken & kuddar', 'Undan vinter / Fram sommar'], deep: ['Tvätta/Steama soffan', 'Städa under soffa & matta', 'Städa under stora möbler', 'Piska matta', 'Tvätta gardiner', 'Rensa förråd'] },
@@ -355,7 +380,16 @@
             const rot13 = day.rotation?.v13 || [];
             const rot2 = day.rotation?.v2 || [];
             const rot4 = day.rotation?.v4 || [];
-            return `<div class="print-card ${day.printClass}"><div class="section-title">${day.name}</div><div style="margin-bottom:10px;"><p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Varje vecka</p>${day.tasks.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div><div><p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Rotation</p>${rot13.map(t => `<div class="print-item"><span class="print-tag tag-v13">V 1/3</span>${t}</div>`).join('')}${rot2.map(t => `<div class="print-item"><span class="print-tag tag-v2">V 2</span>${t}</div>`).join('')}${rot4.map(t => `<div class="print-item"><span class="print-tag tag-v4">V 4</span>${t}</div>`).join('')}</div><div style="border-top:1px solid #eee; margin-top:10px; padding-top:6px; color:#3b82f6; font-style:italic; font-weight:700; font-size:10px;"><span class="print-box" style="border-color:#3b82f6 !important;"></span>Tvätt: ${day.laundry}</div></div>`;
+            
+            const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
+            let lText = "";
+            if (typeof day.laundry === 'object') {
+                lText = day.laundry[rotKey];
+            } else {
+                lText = day.laundry;
+            }
+            
+            return `<div class="print-card ${day.printClass}"><div class="section-title">${day.name}</div><div style="margin-bottom:10px;"><p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Varje vecka</p>${day.tasks.map(t => `<div class="print-item"><span class="print-box"></span>${t}</div>`).join('')}</div><div><p style="font-weight:bold; color:#94a3b8; font-size:8px; margin-bottom:4px; text-transform:uppercase;">Rotation</p>${rot13.map(t => `<div class="print-item"><span class="print-tag tag-v13">V 1/3</span>${t}</div>`).join('')}${rot2.map(t => `<div class="print-item"><span class="print-tag tag-v2">V 2</span>${t}</div>`).join('')}${rot4.map(t => `<div class="print-item"><span class="print-tag tag-v4">V 4</span>${t}</div>`).join('')}</div><div style="border-top:1px solid #eee; margin-top:10px; padding-top:6px; color:#3b82f6; font-style:italic; font-weight:700; font-size:10px;"><span class="print-box" style="border-color:#3b82f6 !important;"></span>Tvätt: ${lText}</div></div>`;
         }
 
         const syncToCloud = async () => {
@@ -409,14 +443,29 @@
                 tabs.appendChild(btn);
             });
             container.appendChild(tabs);
+            
             const day = cleaningData.weekly.find(d => d.id === currentDayId);
             const card = document.createElement('div');
             card.className = "card bg-white rounded-xl card-shadow border-t-4 mb-4";
             card.style.borderTopColor = day.color;
             const displayWeek = (currentWeek === 1 || currentWeek === 3) ? '1/3' : currentWeek;
+            
+            // Ny logik för tvätt-rotation och ID
+            const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
+            let laundryText = "";
+            let laundryId = "";
+
+            if (typeof day.laundry === 'object') {
+                laundryText = day.laundry[rotKey];
+                laundryId = `${day.id}-l-${rotKey}`; // Unikt ID per rotation (t.ex. mon-l-v13)
+            } else {
+                laundryText = day.laundry;
+                laundryId = `${day.id}-l-always`; // Samma ID varje vecka för fasta tvättar
+            }
+
             let html = `<div class="p-4"><div class="flex justify-between items-center mb-3"><h3 class="font-bold uppercase text-slate-800">${day.name}</h3><span class="text-[10px] font-bold text-slate-400">VECKA ${displayWeek}</span></div><div class="space-y-2.5">`;
             day.tasks.forEach((t, i) => html += renderItemHtml(`${day.id}-t-${i}`, t));
-            const rotKey = (currentWeek === 1 || currentWeek === 3) ? 'v13' : (currentWeek === 2 ? 'v2' : 'v4');
+            
             const rotTasks = day.rotation[rotKey] || [];
             if (rotTasks.length > 0) {
                 const rotLabel = (rotKey === 'v13') ? 'V 1/3' : rotKey.toUpperCase();
@@ -424,9 +473,14 @@
                 rotTasks.forEach((t, i) => html += renderItemHtml(`${day.id}-r-${rotKey}-${i}`, t));
                 html += `</div>`;
             }
-            html += `<div class="py-2 border-t mt-2 flex items-center gap-3" onclick="toggleItem('${day.id}-l')"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center ${checkedItems[day.id+'-l'] ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${checkedItems[day.id+'-l'] ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic text-blue-600 ${checkedItems[day.id+'-l'] ? 'checked-text' : ''}">Tvätt: ${day.laundry}</span></div></div></div>`;
+            
+            // Tvätt som en interaktiv punkt med eget ID
+            const isLChecked = checkedItems[laundryId];
+            html += `<div class="py-2 border-t mt-2 flex items-center gap-3" onclick="toggleItem('${laundryId}')"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isLChecked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${isLChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic font-semibold text-blue-600 ${isLChecked ? 'checked-text' : ''}">Tvätt: ${laundryText}</span></div></div></div>`;
+            
             card.innerHTML = html;
             container.appendChild(card);
+            
             if (checkedItems.lastResetWeekly) {
                 const stamp = document.createElement('p');
                 stamp.className = "text-[9px] text-center text-slate-400 font-bold uppercase mb-1 tracking-tighter";
