@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Städlista</title>
     
-    <!-- PWA & Mobilinställningar -->
     <link rel="manifest" href="manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -71,7 +70,6 @@
 </head>
 <body class="bg-slate-50 min-h-screen pb-24 text-slate-900">
 
-    <!-- Header -->
     <header class="bg-white border-b sticky top-0 z-10 px-4 py-3 flex justify-between items-center shadow-sm">
         <div class="flex flex-col">
             <h1 class="text-xl font-bold text-slate-800 uppercase tracking-tight">Städlista</h1>
@@ -103,7 +101,6 @@
 
     <div id="print-area"></div>
 
-    <!-- Modal för Nollställning -->
     <div id="reset-modal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden px-6">
         <div class="bg-white rounded-2xl p-6 w-full max-w-xs card-shadow animate-fade-in text-center">
             <h3 class="font-bold text-lg mb-2">Nollställ?</h3>
@@ -115,7 +112,6 @@
         </div>
     </div>
 
-    <!-- Navigation -->
     <nav class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around items-center h-16 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <button onclick="switchView('weekly')" id="nav-weekly" class="flex flex-col items-center gap-1 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -166,7 +162,7 @@
                 { 
                     id: 'mon', name: 'Måndag', short: 'Mån', color: '#3b82f6', printClass: 'card-top-blue', 
                     tasks: ['Rengör spis & bänk', 'Sopsortering', 'Diskho', 'Tömma komposten'], 
-                    laundry: { v13: 'Underkläder', v2: 'Vit 60°', v4: 'Vit 40°' }, 
+                    laundry: { v13: 'Underkläder', v2: 'Kökshanddukar', v4: 'Vit 40°' }, 
                     rotation: {
                         v13: ['Rengör mikron', 'Smutsiga handtag'],
                         v2: ['Tvätta grytlappar', 'Diskmaskin + filter', 'Olja träverktyg'],
@@ -175,12 +171,12 @@
                 },
                 { 
                     id: 'tue', name: 'Tisdag', short: 'Tis', color: '#9333ea', printClass: 'card-top-purple', 
-                    tasks: ['Toalett', 'Putsa speglar', 'Handfat', 'Robotdammsugare'], 
-                    laundry: { v13: 'Handdukar', v2: 'Kökshanddukar', v4: 'Trasor'}, 
+                    tasks: ['Toalett', 'Handfat', 'Robotdammsugare'], 
+                    laundry: { v13: 'Handdukar', v2: 'Vit 60°', v4: 'Trasor'}, 
                     rotation: {
-                        v13: ['Skrubba duschen'],
-                        v2: ['Badrumsmatta', 'Toalett noggrant'],
-                        v4: ['Koka tandborste']
+                        v13: ['Putsa speglar', 'Badrumsmatta'],
+                        v2: ['Toalett noggrant'],
+                        v4: ['Koka tandborste', 'Skrubba duschen',]
                     }
                 },
                 { 
@@ -470,7 +466,7 @@
             }
             const isLChecked = checkedItems[laundryId];
             const lDate = checkedItems[laundryId + '_date'];
-            html += `<div class="py-2 border-t mt-2 flex items-center justify-between gap-3" onclick="toggleItem('${laundryId}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isLChecked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${isLChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic font-semibold text-blue-600 ${isLChecked ? 'checked-text' : ''}">Tvätt: ${laundryText}</span></div>${lDate && isLChecked ? `<span class="text-[9px] font-bold text-slate-300 uppercase">${lDate}</span>` : ''}</div></div></div>`;
+            html += `<div class="py-2 border-t mt-2 flex items-center justify-between gap-3" onclick="toggleItem('${laundryId}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isLChecked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${isLChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic font-semibold text-blue-600 ${isLChecked ? 'checked-text' : ''}">Tvätt: ${laundryText}</span></div>${lDate ? `<span class="text-[9px] font-bold text-slate-300 uppercase">${lDate}</span>` : ''}</div></div></div>`;
             card.innerHTML = html;
             container.appendChild(card);
             
@@ -549,7 +545,7 @@
             const dateStr = checkedItems[id + '_date'];
             const ts = checkedItems[id + '_ts'];
             const isVeryOld = !isChecked && ts && (Date.now() - ts > 1000 * 60 * 60 * 24 * 7);
-            return `<div class="flex items-center justify-between gap-3 py-0.5" onclick="toggleItem('${id}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isChecked ? 'bg-slate-400 border-slate-400 scale-95' : (isVeryOld ? 'border-amber-400 bg-amber-50' : 'border-slate-300')}">${isChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : (isVeryOld ? '<span class="text-[10px] font-black text-amber-500">!</span>' : '')}</div><span class="text-sm text-slate-600 font-medium leading-tight ${isChecked ? 'checked-text' : ''}">${text}</span></div>${dateStr && isChecked ? `<span class="text-[9px] font-bold text-slate-300 uppercase whitespace-nowrap">${dateStr}</span>` : ''}</div>`;
+            return `<div class="flex items-center justify-between gap-3 py-0.5" onclick="toggleItem('${id}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isChecked ? 'bg-slate-400 border-slate-400 scale-95' : (isVeryOld ? 'border-amber-400 bg-amber-50' : 'border-slate-300')}">${isChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : (isVeryOld ? '<span class="text-[10px] font-black text-amber-500">!</span>' : '')}</div><span class="text-sm text-slate-600 font-medium leading-tight ${isChecked ? 'checked-text' : ''}">${text}</span></div>${dateStr ? `<span class="text-[9px] font-bold text-slate-300 uppercase whitespace-nowrap">${dateStr}</span>` : ''}</div>`;
         }
 
         const initFirebase = async () => {
