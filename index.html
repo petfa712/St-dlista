@@ -466,7 +466,11 @@
             }
             const isLChecked = checkedItems[laundryId];
             const lDate = checkedItems[laundryId + '_date'];
-            html += `<div class="py-2 border-t mt-2 flex items-center justify-between gap-3" onclick="toggleItem('${laundryId}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isLChecked ? 'bg-blue-500 border-blue-500' : 'border-slate-300'}">${isLChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : ''}</div><span class="text-sm italic font-semibold text-blue-600 ${isLChecked ? 'checked-text' : ''}">Tvätt: ${laundryText}</span></div>${lDate ? `<span class="text-[9px] font-bold text-slate-300 uppercase">${lDate}</span>` : ''}</div></div></div>`;
+            const lTs = checkedItems[laundryId + '_ts'];
+            const lThresholdDays = getThresholdDays(laundryId);
+            const isLVeryOld = !isLChecked && lTs && (Date.now() - lTs > 1000 * 60 * 60 * 24 * lThresholdDays);
+            
+            html += `<div class="py-2 border-t mt-2 flex items-center justify-between gap-3" onclick="toggleItem('${laundryId}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isLChecked ? 'bg-blue-500 border-blue-500' : (isLVeryOld ? 'border-amber-400 bg-amber-50' : 'border-slate-300')}">${isLChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : (isLVeryOld ? '<span class="text-[10px] font-black text-amber-500">!</span>' : '')}</div><span class="text-sm italic font-semibold text-blue-600 ${isLChecked ? 'checked-text' : ''}">Tvätt: ${laundryText}</span></div>${lDate ? `<span class="text-[9px] font-bold text-slate-300 uppercase">${lDate}</span>` : ''}</div></div></div>`;
             card.innerHTML = html;
             container.appendChild(card);
             
@@ -540,11 +544,22 @@
             }
         }
 
+        function getThresholdDays(id) {
+            if (id.includes('-r-v13') || id.includes('-l-v13')) return 14; 
+            if (id.includes('-r-v2') || id.includes('-r-v4') || id.includes('-l-v2') || id.includes('-l-v4')) return 28;
+            if (id.includes('shared-q-')) return 91;
+            if (id.includes('-st-') || id.includes('-sd-')) return 365;
+            return 7;
+        }
+        
         function renderItemHtml(id, text) {
             const isChecked = checkedItems[id];
             const dateStr = checkedItems[id + '_date'];
             const ts = checkedItems[id + '_ts'];
-            const isVeryOld = !isChecked && ts && (Date.now() - ts > 1000 * 60 * 60 * 24 * 7);
+            
+            const thresholdDays = getThresholdDays(id);
+            const isVeryOld = !isChecked && ts && (Date.now() - ts > 1000 * 60 * 60 * 24 * thresholdDays);
+            
             return `<div class="flex items-center justify-between gap-3 py-0.5" onclick="toggleItem('${id}')"><div class="flex items-center gap-3"><div class="w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${isChecked ? 'bg-slate-400 border-slate-400 scale-95' : (isVeryOld ? 'border-amber-400 bg-amber-50' : 'border-slate-300')}">${isChecked ? '<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="3" d="M5 13l4 4L19 7"/></svg>' : (isVeryOld ? '<span class="text-[10px] font-black text-amber-500">!</span>' : '')}</div><span class="text-sm text-slate-600 font-medium leading-tight ${isChecked ? 'checked-text' : ''}">${text}</span></div>${dateStr ? `<span class="text-[9px] font-bold text-slate-300 uppercase whitespace-nowrap">${dateStr}</span>` : ''}</div>`;
         }
 
